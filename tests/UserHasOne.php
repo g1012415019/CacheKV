@@ -2,9 +2,9 @@
 
 namespace Asfop\Tests;
 
-use Asfop\HasOne\HasOne;
+use Asfop\Eloquent\Eloquent;
 
-class UserHasOne
+class UserEloquent
 {
     const KEY = "user:v1";
 
@@ -16,10 +16,10 @@ class UserHasOne
      */
     public function getInfoList($ids, array $attrs = []): array
     {
-        $cache = new \Asfop\HasOne\Cache(\Illuminate\Support\Facades\Redis::connection());
+        $cache = new \Asfop\Eloquent\Cache(\Illuminate\Support\Facades\Redis::connection());
         $drive = new Drive();
-        $hasOne = new HasOne($cache, $drive, self::KEY);
-        return $hasOne->getInfoList($ids, $attrs);
+        $Eloquent = new Eloquent($cache, $drive, self::KEY);
+        return $Eloquent->getInfoList($ids, $attrs);
     }
 
     /**
@@ -30,10 +30,10 @@ class UserHasOne
      */
     public function getInfo(int $id, array $attrs = []): array
     {
-        $cache = new \Asfop\HasOne\Cache(\Illuminate\Support\Facades\Redis::connection());
+        $cache = new \Asfop\Eloquent\Cache(\Illuminate\Support\Facades\Redis::connection());
         $drive = new Drive();
-        $hasOne = new HasOne($cache, $drive, self::KEY);
-        return $hasOne->getInfoList([$id], $attrs);
+        $Eloquent = new Eloquent($cache, $drive, self::KEY);
+        return $Eloquent->getInfoList([$id], $attrs);
     }
 
     /**
@@ -44,9 +44,9 @@ class UserHasOne
      */
     public function forgetCache(int $id, string $attr)
     {
-        $cache = new \Asfop\HasOne\Cache(\Illuminate\Support\Facades\Redis::connection());
+        $cache = new \Asfop\Eloquent\Cache(\Illuminate\Support\Facades\Redis::connection());
         $drive = new Drive();
-        $hasOne = new HasOne($cache, $drive, self::KEY);
-        $hasOne->forgetCache($id, $attr);
+        $Eloquent = new Eloquent($cache, $drive, self::KEY);
+        $Eloquent->forgetCache($id, $attr);
     }
 }

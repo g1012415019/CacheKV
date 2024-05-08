@@ -4,7 +4,7 @@ namespace Asfop\Tests\attribute;
 
 
 use App\Models\MemberModel;
-use Asfop\HasOne\attribute\Base;
+use Asfop\Eloquent\attribute\Base;
 
 
 class Info extends Base

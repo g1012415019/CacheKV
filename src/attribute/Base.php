@@ -1,9 +1,8 @@
 <?php
 
-namespace Asfop\HasOne\attribute;
+namespace Asfop\Eloquent\attribute;
 
-use Asfop\HasOne\Cache;
-use Asfop\HasOne\contract\AttrInterface;
+use Asfop\Eloquent\contract\AttrInterface;
 
 abstract class Base implements AttrInterface
 {

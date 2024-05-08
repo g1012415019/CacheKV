@@ -1,9 +1,9 @@
 <?php
 
 
-namespace Asfop\HasOne;
+namespace Asfop\Eloquent;
 
-use Asfop\HasOne\contract\CacheInterface;
+use Asfop\Eloquent\contract\CacheInterface;
 
 class Cache implements CacheInterface
 {

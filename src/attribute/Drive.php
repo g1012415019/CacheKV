@@ -1,6 +1,6 @@
 <?php
 
-namespace Asfop\HasOne\attribute;
+namespace Asfop\Eloquent\attribute;
 
 abstract class Drive
 {

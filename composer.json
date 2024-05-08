@@ -1,9 +1,9 @@
 {
-    "name": "asfop/hasone",
+    "name": "asfop/eloquent",
     "description": "在一对一关联情况下的数据缓存的一种尝试",
     "license": "MIT",
     "keywords": [
-        "php","hasone"
+        "php","Eloquent"
     ],
     "authors": [
         {
@@ -18,7 +18,7 @@
     "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
-            "Asfop\\HasOne\\": "src/"
+            "Asfop\\Eloquent\\": "src/"
         }
     },
     "autoload-dev": {

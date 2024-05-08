@@ -5,8 +5,8 @@
 
 ### 获取多个用户的基础信息
 ```php
-$userHasOne = new UserHasOne();
-dd($userHasOne->getInfoList([32,33],['info']));
+$userEloquent = new UserEloquent();
+dd($userEloquent->getInfoList([32,33],['info']));
 // 32 => array:2 [ 
 //    "info" => array:3 [
 //      "id" => 32
@@ -25,8 +25,8 @@ dd($userHasOne->getInfoList([32,33],['info']));
 ```
 ### 获取多个用户的基础信息和im信息
 ```php
-$userHasOne = new UserHasOne();
-dd($userHasOne->getInfoList([32,33],['info','im']));
+$userEloquent = new UserEloquent();
+dd($userEloquent->getInfoList([32,33],['info','im']));
 //array:2 [ 
 //  32 => array:2 [ 
 //    "info" => array:3 [
@@ -55,6 +55,6 @@ dd($userHasOne->getInfoList([32,33],['info','im']));
 ```
 ### 当数据发生改变后清空缓存
 ```php
-$userHasOne = new UserHasOne();
-dd($userHasOne->forgetCache(34, 'im'));
+$userEloquent = new UserEloquent();
+dd($userEloquent->forgetCache(34, 'im'));
 ```

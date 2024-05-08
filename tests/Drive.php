@@ -2,7 +2,7 @@
 
 namespace Asfop\Tests;
 
-use \Asfop\HasOne\attribute\Drive as BaseDrive;
+use \Asfop\Eloquent\attribute\Drive as BaseDrive;
 use Asfop\Tests\attribute\Im;
 use Asfop\Tests\attribute\Info;
 

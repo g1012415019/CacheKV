@@ -1,10 +1,10 @@
 <?php
 
-namespace Asfop\HasOne;
+namespace Asfop\Eloquent;
 
-use Asfop\HasOne\attribute\Drive;
+use Asfop\Eloquent\attribute\Drive;
 
-class HasOne
+class Eloquent
 {
     /**
      * 不可以改

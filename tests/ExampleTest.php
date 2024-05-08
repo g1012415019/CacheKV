@@ -15,8 +15,8 @@ class ExampleConstantTest extends TestCase
     public function testGet()
     {
         print_r(11);
-        $userHasOne = new UserHasOne();
-        print_r($userHasOne->getInfoList([32, 33], ['info', 'im']));
+        $userEloquent = new UserEloquent();
+        print_r($userEloquent->getInfoList([32, 33], ['info', 'im']));
         die;
     }
 }

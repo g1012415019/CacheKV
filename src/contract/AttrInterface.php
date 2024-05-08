@@ -1,8 +1,8 @@
 <?php
 
-namespace Asfop\HasOne\contract;
+namespace Asfop\Eloquent\contract;
 
-use Asfop\HasOne\Cache;
+use Asfop\Eloquent\Cache;
 
 interface AttrInterface
 {

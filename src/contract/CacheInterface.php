@@ -1,6 +1,6 @@
 <?php
 
-namespace Asfop\HasOne\contract;
+namespace Asfop\Eloquent\contract;
 
 interface CacheInterface
 {

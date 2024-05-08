@@ -5,7 +5,7 @@ namespace Asfop\Tests\attribute;
 
 use App\Models\MemberImModel;
 use App\Models\MemberModel;
-use Asfop\HasOne\attribute\Base;
+use Asfop\Eloquent\attribute\Base;
 
 
 class Im extends Base

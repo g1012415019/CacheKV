@@ -1,10 +1,10 @@
 <?php
 
-namespace Asfop\HasOne;
+namespace Asfop\Eloquent;
 
 
-use Asfop\HasOne\attribute\Drive;
-use Asfop\HasOne\contract\AttrInterface;
+use Asfop\Eloquent\attribute\Drive;
+use Asfop\Eloquent\contract\AttrInterface;
 use InvalidArgumentException;
 
 class Factory
