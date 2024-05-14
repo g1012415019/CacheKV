@@ -144,7 +144,7 @@ class Eloquent
             list(, $id, $attr) = explode(":_", $index);
             // attr =>[id1,id2,id3]
             //需要走db
-            if (is_null($item) || $item=="" ) {
+            if (is_null($item) || $item == "") {
                 $this->queryItems[$attr][] = $id;
                 continue;
             }
@@ -211,13 +211,15 @@ class Eloquent
     private function transforms($ids, array $attrs = [])
     {
         $list = [];
-        foreach ($ids as $index => $id) {
-            foreach ($attrs as $index => $attr) {
-                $list[$id][$attr] = $this->items[$attr][$id];
+
+        if (!empty($ids)) {
+            foreach ($ids as $id) {
+                foreach ($attrs as $attr) {
+                    $list[$id][$attr] = $this->items[$attr][$id];
+                }
             }
-
         }
-
+        
         $this->items = $list;
         if (!empty($list)) {
             unset($list);
