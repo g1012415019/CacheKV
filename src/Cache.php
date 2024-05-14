@@ -41,11 +41,11 @@ class Cache implements CacheInterface
         $results = [];
 
         $values = $this->redis->mget($keys);
-
-        foreach ($values as $index => $value) {
-            $results[$keys[$index]] = !is_null($value) ? $this->unserialize($value) : null;
+        if (!empty($values)) {
+            foreach ($values as $index => $value) {
+                $results[$keys[$index]] = !is_null($value) ? $this->unserialize($value) : null;
+            }
         }
-
         return $results;
     }
 
