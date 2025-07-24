@@ -1,12 +1,10 @@
 {
-    "name": "asfop/query-cache",
-    "description": "A flexible, ORM-agnostic caching layer for database queries, supporting single and batch data retrieval.",
+    "name": "asfop/cache-kv",
+    "description": "A flexible, high-performance key-value caching library for PHP, supporting automatic fetching, batch operations, tag-based invalidation, and sliding expiration.",
     "license": "MIT",
     "keywords": [
         "php",
         "cache",
-        "query",
-        "database",
         "data",
         "batch"
     ],
@@ -17,18 +15,18 @@
         }
     ],
     "require": {
-        "php": "^7.0"
+        "php": "^8.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
-            "Asfop\\QueryCache\\": "src/"
+            "Asfop\\CacheKV\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Asfop\\QueryCache\\Tests\\": "tests/"
+            "Asfop\\CacheKV\\Tests\\": "tests/"
         }
     },
     "config": {

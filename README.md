@@ -1,267 +1,371 @@
-# Query Cache
+# Data Cache
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/asfop/query-cache.svg?style=flat-square)](https://packagist.org/packages/asfop/query-cache)
-[![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
-[![PHP Version Require](https://img.shields.io/packagist/php/asfop/query-cache?style=flat-square)](https://packagist.org/packages/asfop/query-cache)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/asfop/data-cache.svg?style=flat-square)](https://packagist.org/packages/asfop/data-cache)
+[![Software License](https://img.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+[![PHP Version Require](https://img.shields.io/packagist/php/asfop/data-cache?style=flat-square)](https://packagist.org/packages/asfop/data-cache)
 
-**Query Cache** 是一个灵活的、与 ORM 无关的数据库查询缓存层。它旨在帮助您高效地缓存数据库查询结果，支持单个记录和批量记录的获取，从而显著提升应用程序的性能。
-
-本库的核心理念是提供一个通用的缓存机制，让您能够手动控制数据查询和缓存的逻辑，而不依赖于任何特定的 ORM（如 Eloquent、Doctrine 等）。
+**Data Cache** 是一个专注于简化数据获取流程的 PHP 缓存封装库。它通过提供统一的接口，自动化了‘先从缓存读取，若无则从数据源获取并回填缓存’这一常见模式。该库支持单条及批量数据操作、基于标签的缓存失效管理，并提供基础的性能统计功能，旨在显著提升应用程序的数据访问效率。
 
 ## 核心特性
 
--   **ORM 无关**: 不依赖任何特定的 ORM，您可以将其集成到任何 PHP 项目中。
--   **灵活的数据库适配器**: 通过 `DatabaseAdapter` 接口，您可以轻松接入任何数据库连接（如 PDO、MySQLi 等）。
--   **可插拔的缓存驱动**: 通过 `CacheDriver` 接口，您可以自由选择和扩展缓存后端（如内存、Redis、Memcached 等）。
--   **高效的批量查询**: `getByIds` 方法支持批量获取数据，有效解决 N+1 查询问题。
--   **自动缓存与失效**: 查询结果自动缓存，并提供手动清除指定缓存的方法。
--   **可定制的缓存键**: 通过 `KeyGenerator` 接口，您可以自定义缓存键的生成策略。
--   **兼容性强**: 支持 PHP 7.0 及以上版本。
+-   **多驱动支持**：兼容 Redis/Memcached 等多种缓存驱动。
+-   **批量操作优化**：针对批量数据获取场景进行优化，减少回源次数。
+-   **缓存标签系统**：支持按分类管理缓存项，方便批量失效。
+-   **智能统计监控**：提供缓存命中率等实时统计数据。
+-   **自动序列化**：统一处理数据存储格式，简化开发。
+-   **自动化回源回填**：封装“缓存-回源-回填”模式，减少样板代码。
+-   **基于访问频率的自动续期（滑动过期）**：热点数据在被访问时自动延长其过期时间，确保常用数据始终保持缓存。
 
-## 解决的问题
+## 解决的问题与使用场景对比
 
-在没有 `QueryCache` 包的情况下，当您需要对基于 ID 列表的数据库查询（例如 `SELECT * FROM users WHERE id IN (1, 5, 10)`）进行缓存时，通常会面临以下挑战：
+在没有统一缓存管理机制的应用程序中，开发者常面临以下挑战：
 
--   **重复的手动缓存逻辑**: 每次需要缓存一个查询时，您都必须手动编写大量重复的代码，包括生成缓存键、检查缓存、从数据库获取数据（如果缓存未命中）、以及将结果存入缓存。这导致代码冗余、难以维护且容易出错。
--   **`IN` 查询的复杂缓存键管理**: 对于 `IN` 查询，缓存键必须唯一地表示特定的 ID 集合。手动管理这些键（例如，确保 `users:1,5,10` 和 `users:10,5,1` 映射到同一个键）对于大型或动态变化的 ID 列表来说，既困难又低效。
--   **多表关联查询的缓存复杂性**: 缓存涉及多个表（例如用户及其个人资料）的复杂数据结构，并确保当任何关联数据发生变化时缓存能够正确失效，是一个巨大的挑战。
--   **缓存失效的挑战**: 手动实现健壮的缓存失效策略（例如，当底层数据更新时清除缓存）非常容易出错，并且可能导致应用程序提供过期数据。
+-   **重复的缓存逻辑**: 每次需要缓存数据时，都需手动编写重复代码，包括键生成、数据序列化/反序列化、缓存检查、数据源回源及缓存回填等，导致代码冗余、难以维护且易出错。
+-   **复杂的缓存失效**: 手动管理缓存失效（例如，当数据源更新时）容易遗漏，特别是对于逻辑上相关的多个缓存项，批量失效操作复杂且易导致数据不一致。
+-   **缓存后端耦合**: 应用程序代码直接依赖特定缓存客户端（如 `Redis` 扩展），导致缓存技术栈难以更换，增加了系统重构成本。
+-   **缺乏统一接口**: 不同模块可能采用不同的缓存实现方式，导致缓存管理分散，难以统一监控和优化。
 
-## 解决方案
+**Data Cache** 通过提供一个统一、自动化且可扩展的解决方案，有效应对上述挑战：
 
-`QueryCache` 包通过提供一个统一、自动化且可扩展的解决方案，解决了上述基于 ID 列表的数据库查询缓存的挑战。它将复杂的缓存管理逻辑抽象化，让开发者能够专注于业务逻辑。
+-   **封装缓存逻辑**: 将缓存的存取、序列化、过期管理和数据源回源逻辑封装在库内部，减少业务代码中的样板代码。
+-   **简化缓存失效**: 引入标签机制，使得相关缓存项可以被分组管理，并通过标签进行批量失效，大大简化了缓存失效策略的实现。
+-   **解耦缓存后端**: 通过 `CacheDriver` 接口实现缓存后端与业务逻辑的解耦，允许开发者根据需求灵活选择和切换缓存技术。
+-   **统一缓存接口**: 提供一套标准化的 API，确保整个应用程序的缓存操作一致性，便于管理和性能优化。
 
-解决方案的核心特点包括：
+### 场景一：用户信息缓存（单条数据获取）
 
--   **自动化缓存工作流**: `QueryCache::getByIds()` 方法封装了完整的缓存处理流程：自动生成缓存键、检查缓存、在缓存未命中时查询数据库，并将结果存储到缓存中。
--   **标准化键生成**: `KeyGenerator` 确保为任何给定的查询参数生成一致且唯一的缓存键，极大地简化了 `IN` 查询键的管理。
--   **解耦的架构**: 通过 `DatabaseAdapter` 和 `CacheDriver` 接口，本包独立于特定的 ORM 或缓存后端，提供了极高的灵活性和易用性。
--   **支持关联数据**: `getByIds` 方法的 `relations` 参数允许缓存包含多个相关实体（可能来自不同表）的复杂数据结构。
+**问题**: 频繁从数据库获取用户信息，导致数据库压力大，响应慢。
 
-## 优点
+**没有 DataCache 时的实现（伪代码）**
 
-使用 `QueryCache` 包将带来以下显著优势：
+```php
+function getUserInfo($userId) {
+    // 1. 手动构造缓存键
+    $cacheKey = "user_" . $userId;
+    
+    // 2. 尝试从缓存获取
+    $data = $cache->get($cacheKey);
+    
+    if ($data) {
+        return $data; // 缓存命中
+    }
+    
+    // 3. 缓存不存在则查询数据库
+    $user = /* 数据库查询操作，例如：SELECT * FROM users WHERE id = $userId */;
+    
+    // 4. 设置缓存（需手动处理序列化、过期时间、异常等）
+    $cache->set($cacheKey, $user, 3600); // 缓存 1 小时
+    
+    return $user;
+}
+// 痛点：代码冗余，缓存逻辑与业务逻辑混杂，手动管理过期和序列化，易引入缓存击穿问题。
+```
 
--   **减少样板代码**: 大幅减少了手动编写的缓存逻辑，使您的代码库更简洁、更易于维护。
--   **提升应用性能**: 通过从缓存中提供数据，显著减少了数据库查询次数，从而加快了响应速度并降低了数据库负载。
--   **简化缓存管理**: 自动化了缓存键的生成和数据的存取，将开发者从繁琐的缓存操作中解放出来。
--   **高度灵活和可扩展**: 其解耦的设计允许轻松替换数据库适配器和缓存驱动，以适应不同的项目需求和技术栈。
--   **缓解 N+1 查询问题**: `getByIds` 方法天然支持批量获取数据，有助于解决基于 ID 查找的 N+1 查询问题。
--   **ORM 无关性**: 可以无缝集成到任何 PHP 项目中，无论您使用何种 ORM 或数据库抽象层。
+**使用 DataCache 后的实现**
 
-## 缺点/局限性
+```php
+function getUserInfo($userId) {
+    // DataCache 自动化处理缓存逻辑：先查缓存，无则执行回调函数从数据源获取并回填
+    return $cache->get("user_" . $userId, function() use ($userId) {
+        return /* 数据库查询操作，例如：SELECT * FROM users WHERE id = $userId */;
+    }, 3600); // 统一设置过期时间
+}
+// 优势：代码简洁，缓存逻辑自动化，过期时间集中管理，有效防止缓存击穿。
+```
 
-尽管 `QueryCache` 提供了强大的功能，但当前版本也存在一些局限性或需要注意的地方：
+### 场景二：商品批量查询（多条数据获取）
 
--   **手动缓存失效**: 尽管提供了 `forgetCache` 方法，但对于数据变更引起的自动、健壮的缓存失效（例如，基于标签或事件驱动的失效）并未内置，需要开发者手动实现或结合外部机制。
--   **查询类型限制**: 主要设计用于基于 ID 的 `SELECT` 查询。它不直接支持缓存复杂的 `WHERE` 子句（除了 `IN`）、聚合查询或写操作。
--   **初始配置开销**: 对于非常简单的缓存需求，初始配置 `DatabaseAdapter`、`CacheDriver` 和 `attributeConfig` 可能会带来一定的开销。
--   **潜在的数据不一致**: 如果没有配合完善的缓存失效策略，当底层数据库记录发生变化而缓存未及时更新时，存在提供过期数据的风险。
--   **无内置分布式锁**: 在高并发场景下，为了防止缓存击穿（即多个请求同时重建同一个缓存条目），可能需要额外实现分布式锁机制。
+**问题**: 需要根据多个 ID 批量获取商品信息，传统方式容易导致 N+1 查询或复杂的缓存回填逻辑。
 
+**没有 DataCache 时的实现（伪代码）**
+
+```php
+function getProducts($productIds) {
+    $result = [];
+    
+    // 1. 循环尝试从缓存获取每个商品
+    foreach ($productIds as $id) {
+        $cacheKey = "product_" . $id;
+        if ($data = $cache->get($cacheKey)) {
+            $result[$id] = $data; // 缓存命中
+        } else {
+            $missingIds[] = $id; // 记录未命中的 ID
+        }
+    }
+    
+    // 2. 批量查询缺失数据
+    if (!empty($missingIds)) {
+        $products = /* 数据库批量查询操作，例如：SELECT * FROM products WHERE id IN (...) */;
+        
+        // 3. 循环设置缓存并合并结果
+        foreach ($products as $product) {
+            $cache->set("product_" . $product['id'], $product, 3600);
+            $result[$product['id']] = $product;
+        }
+    }
+    
+    return $result;
+}
+// 痛点：N+1 查询问题，手动处理缓存命中/未命中逻辑，代码复杂且易出错。
+```
+
+**使用 DataCache 后的实现**
+
+```php
+function getProducts($productIds) {
+    // DataCache 自动处理批量缓存逻辑：批量查询缓存，对未命中项批量回源并回填
+    return $cache->getMultiple(array_map(fn($id) => "product_" . $id, $productIds), function($missingKeys) {
+        $missingProductIds = array_map(fn($key) => (int) str_replace("product_", "", $key), $missingKeys);
+        return /* 数据库批量查询操作，例如：SELECT * FROM products WHERE id IN (...) */;
+    }, 3600);
+}
+// 优势：自动批量处理，统一缓存策略，有效避免 N+1 查询问题，代码简洁高效。
+```
+
+### 场景三：外部 API 响应缓存
+
+**问题**: 频繁请求第三方 API，导致请求次数过多，响应时间长，且可能超出 API 调用限制。
+
+**没有 DataCache 时的实现（伪代码）**
+
+```php
+function getWeatherData($city) {
+    $cacheKey = "weather_" . $city;
+    $data = $cache->get($cacheKey);
+    if ($data) {
+        return $data;
+    }
+    
+    $response = /* 调用第三方天气 API */;
+    $weatherData = json_decode($response, true);
+    
+    $cache->set($cacheKey, $weatherData, 600); // 缓存 10 分钟
+    return $weatherData;
+}
+// 痛点：手动处理 API 响应缓存，逻辑分散，难以统一管理。
+```
+
+**使用 DataCache 后的实现**
+
+```php
+function getWeatherData($city) {
+    return $cache->get("weather_" . $city, function() use ($city) {
+        $response = /* 调用第三方天气 API */;
+        return json_decode($response, true);
+    }, 600);
+}
+// 优势：将 API 调用逻辑封装在回调中，DataCache 自动处理缓存，减少重复 API 请求。
+```
+
+### 场景四：处理空数据或不存在的数据（缓存穿透防护）
+
+**问题**: 频繁查询不存在的数据（例如恶意请求），导致每次都穿透缓存直接访问数据源，增加数据源压力。
+
+**没有 DataCache 时的实现（伪代码）**
+
+```php
+function getNonExistentUser($userId) {
+    $cacheKey = "user_" . $userId;
+    $data = $cache->get($cacheKey);
+    
+    // 无法区分是缓存了 null 还是未缓存
+    if ($data !== null) { 
+        return $data;
+    }
+    
+    $user = /* 数据库查询，可能返回 null */;
+    
+    // 如果 $user 为 null，不缓存，下次还会穿透
+    if ($user !== null) {
+        $cache->set($cacheKey, $user, 3600);
+    }
+    return $user;
+}
+// 痛点：无法有效缓存空结果，导致缓存穿透。
+```
+
+**使用 DataCache 后的实现**
+
+```php
+function getNonExistentUser($userId) {
+    // DataCache 会缓存回调函数返回的任何值，包括 null，有效防止缓存穿透
+    return $cache->get("user_" . $userId, function() use ($userId) {
+        return /* 数据库查询，即使返回 null 也会被缓存 */;
+    }, 3600); 
+}
+// 优势：自动缓存空结果，有效防止缓存穿透，减轻数据源压力。
+```
+
+### 场景五：基于标签的批量缓存失效
+
+**问题**: 当某个分类下的数据发生变化时，需要手动清除所有相关缓存项，操作繁琐且容易遗漏。
+
+**没有 DataCache 时的实现（伪代码）**
+
+```php
+// 假设有多个商品缓存项：product_1, product_2, product_category_A_list, product_tag_new_list
+
+function updateProductCategory($categoryId) {
+    // 更新数据库中的商品分类
+    /* ... */
+
+    // 手动清除所有相关的缓存键，容易遗漏
+    $cache->del("product_1");
+    $cache->del("product_2");
+    $cache->del("product_category_" . $categoryId . "_list");
+    // ... 更多相关的键
+}
+// 痛点：缓存失效逻辑复杂，难以维护，容易导致数据不一致。
+```
+
+**使用 DataCache 后的实现**
+
+```php
+// 存储时为相关缓存项打上标签
+$cache->setWithTag('product:1', $product1Data, 'category:electronics', 3600);
+$cache->setWithTag('product:2', $product2Data, 'category:electronics', 3600);
+$cache->setWithTag('category:electronics:list', $categoryList, 'category:electronics', 3600);
+
+function updateProductCategory($categoryId) {
+    // 更新数据库中的商品分类
+    /* ... */
+
+    // 一键清除所有关联 'category:electronics' 标签的缓存项
+    $cache->clearTag('category:' . $categoryId);
+}
+// 优势：通过标签系统，实现相关缓存项的批量、原子性失效，大大简化缓存管理。
+```
+
+### 场景六：热点数据自动续期（滑动过期）
+
+**问题**: 某些数据被频繁访问，但其过期时间固定，导致热点数据频繁失效和重建，增加数据源压力。
+
+**没有 DataCache 时的实现（伪代码）**
+
+```php
+function getHotItem($itemId) {
+    $cacheKey = "item_" . $itemId;
+    $data = $cache->get($cacheKey);
+    if ($data) {
+        return $data;
+    }
+    
+    $item = /* 从数据源获取热点数据 */;
+    $cache->set($cacheKey, $item, 300); // 固定缓存 5 分钟
+    return $item;
+}
+// 痛点：热点数据即使被频繁访问，也会在固定时间后失效，导致频繁回源。
+```
+
+**使用 DataCache 后的实现**
+
+```php
+function getHotItem($itemId) {
+    // DataCache 在获取数据时会自动续期，确保热点数据始终保持缓存
+    return $cache->get("item_" . $itemId, function() use ($itemId) {
+        return /* 从数据源获取热点数据 */;
+    }, 300); // 每次访问，缓存有效期自动延长至 5 分钟
+}
+// 优势：热点数据自动续期，减少回源，降低数据源压力，提升用户体验。
+```
+
+### 对比总结（核心差异）
+
+| 功能点         | 传统实现               | DataCache 方案           |
+| :------------- | :--------------------- | :----------------------- |
+| 缓存读取       | 需手动判断是否存在     | 自动处理回源逻辑         |
+| 批量操作       | 循环单条执行           | 原生批量操作优化         |
+| 缓存失效       | 需手动维护关联关系     | 标签系统自动管理         |
+| 缓存后端       | 代码耦合               | 接口解耦，灵活切换       |
+| 缓存穿透防护   | 需额外逻辑处理空结果   | 自动缓存空结果           |
+| 热点数据管理   | 固定过期，频繁回源     | 基于访问频率自动续期     |
+| 监控统计       | 难以实现               | 内置命中率统计           |
+
+## 工作原理
+
+`DataCache` 的核心在于其对缓存操作流程的自动化和抽象。当应用程序请求数据时：
+
+1.  **缓存查询**: `DataCache` 首先尝试从配置的 `CacheDriver` 中获取数据。
+2.  **缓存命中**: 如果数据存在且未过期（缓存命中），则直接返回缓存数据，并根据配置**自动延长其过期时间（滑动过期）**，避免了对原始数据源的访问。
+3.  **缓存未命中**: 如果缓存中不存在所需数据或数据已过期，`DataCache` 会调用开发者提供的回调函数（通常用于从数据库、API 等原始数据源获取数据）。
+4.  **数据回填**: 从数据源获取到数据后，`DataCache` 会自动将这些数据存储到缓存中，以便后续请求可以直接从缓存获取。
+5.  **标签管理**: 当使用 `setWithTag` 存储数据时，`DataCache` 会在缓存中记录该数据与指定标签的关联。当调用 `clearTag` 时，所有与该标签关联的缓存项将被批量清除。
 
 ## 安装
 
 您可以通过 Composer 安装本扩展包：
 
 ```bash
-composer require asfop/query-cache
+composer require asfop/data-cache
 ```
-
-## 工作原理
-
-`QueryCache` 核心类协调 `DatabaseAdapter`（负责数据库查询）、`CacheDriver`（负责缓存存储）和 `KeyGenerator`（负责缓存键生成）。当您请求数据时，它会首先尝试从缓存中获取。如果缓存未命中，则通过 `DatabaseAdapter` 从数据库中获取数据，然后将数据存入缓存，并返回给调用方。
 
 ## 基础用法
 
-首先，您需要实例化 `QueryCache` 类，并为其提供 `DatabaseAdapter` 和 `CacheDriver` 的实现。
-
-**1. 准备数据库适配器 (以 PDO 为例):**
+首先，实例化 `DataCache` 类，并为其提供一个 `CacheDriver` 实现：
 
 ```php
 <?php
 
-use Asfop\QueryCache\Database\Drivers\PdoAdapter;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\DataCache;
 
-// 假设您已经有一个 PDO 实例
-$pdo = new PDO('sqlite::memory:');
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+// 1. 初始化 DataCache 实例 (使用内存数组作为缓存后端)
+$arrayDriver = new ArrayDriver();
+$cache = new DataCache($arrayDriver, 3600); // 默认缓存有效期 3600 秒
 
-// 创建测试表
-$pdo->exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
-$pdo->exec("CREATE TABLE user_info (user_id INTEGER PRIMARY KEY, email TEXT, bio TEXT)");
+// 2. 存储单个缓存项
+$cache->set('user:1', ['id' => 1, 'name' => 'Alice'], 60); // 缓存 60 秒
 
-// 插入一些数据
-$pdo->exec("INSERT INTO users (id, name) VALUES (1, 'Alice')");
-$pdo->exec("INSERT INTO users (id, name) VALUES (2, 'Bob')");
-$pdo->exec("INSERT INTO user_info (user_id, email, bio) VALUES (1, 'alice@example.com', 'Software Engineer')");
-$pdo->exec("INSERT INTO user_info (user_id, email, bio) VALUES (2, 'bob@example.com', 'Project Manager')");
+// 3. 获取单个缓存项
+$user = $cache->get('user:1');
+print_r($user);
 
-$dbAdapter = new PdoAdapter($pdo);
-```
+// 4. 存储带标签的缓存项
+$cache->setWithTag('user:123', ['id' => 123, 'name' => 'Bob'], 'users', 300); // 关联 'users' 标签
+$cache->setWithTag('user:456', ['id' => 456, 'name' => 'Charlie'], ['users', 'vip'], 300); // 关联多个标签
 
-**2. 准备缓存驱动 (以 ArrayDriver 为例):**
-
-```php
-<?php
-
-use Asfop\QueryCache\Cache\Drivers\ArrayDriver;
-
-$cacheDriver = new ArrayDriver();
-```
-
-**3. 实例化 `QueryCache`:**
-
-```php
-<?php
-
-use Asfop\QueryCache\QueryCache;
-
-$queryCache = new QueryCache($dbAdapter, $cacheDriver);
-```
-
-**4. 定义属性配置:**
-
-您需要为每个要查询的“属性”或“关联”定义其对应的数据库表、ID 列等信息。
-
-```php
-<?php
-
-$attributeConfig = [
-    'user' => [ // 主实体 'user' 的配置
-        'table' => 'users',
-        'id_column' => 'id',
-        'columns' => ['id', 'name'],
-        'ttl' => 3600, // 默认缓存时间
-    ],
-    'info' => [ // 'info' 属性的配置
-        'table' => 'user_info',
-        'id_column' => 'user_id', // 'user_info' 表通过 'user_id' 关联
-        'columns' => ['user_id', 'email', 'bio'],
-        'ttl' => 3600,
-    ],
-    // 您可以添加更多属性，例如 'phone', 'address' 等
-    // 'phone' => [
-    //     'table' => 'user_phones',
-    //     'id_column' => 'user_id',
-    //     'columns' => ['phone_number'],
-    //     'ttl' => 3600,
-    // ],
-];
-```
-
-### 获取单个记录 (`getById`)
-
-```php
-// 获取 ID 为 1 的用户及其 info
-$userId = 1;
-$data = $queryCache->getById(
-    'user', // 实体名称
-    'users', // 主表名
-    $userId,
-    ['user', 'info'], // 要获取的属性
-    $attributeConfig // 属性配置
+// 5. 批量获取缓存项
+$userIds = [1, 2, 3];
+$users = $cache->getMultiple(
+    array_map(fn($id) => 'user:' . $id, $userIds), // 待获取的缓存键数组
+    function (array $missingKeys) {
+        // 回调函数：当缓存未命中时，从数据源批量获取数据
+        echo "从数据源获取缺失的键: " . implode(', ', $missingKeys) . "\n";
+        $fetchedData = [];
+        foreach ($missingKeys as $key) {
+            $id = (int) str_replace('user:', '', $key);
+            $fetchedData[$key] = ['id' => $id, 'name' => 'User ' . $id . ' (from DB)'];
+        }
+        return $fetchedData;
+    },
+    60 // 缓存有效期 60 秒
 );
+print_r($users);
 
-print_r($data);
-/*
-Array
-(
-    [user] => Array
-        (
-            [id] => 1
-            [name] => Alice
-        )
-    [info] => Array
-        (
-            [user_id] => 1
-            [email] => alice@example.com
-            [bio] => Software Engineer
-        )
-)
-*/
+// 6. 通过标签清除缓存
+$cache->clearTag('users'); // 清除所有关联 'users' 标签的缓存项
 
-// 第二次获取，将从缓存中读取
-$dataFromCache = $queryCache->getById('user', 'users', $userId, ['user', 'info'], $attributeConfig);
-// ...
-```
+// 7. 清除单个缓存项
+$cache->forget('user:1');
 
-### 获取多个记录 (`getByIds`)
-
-```php
-// 获取 ID 为 1 和 2 的用户及其 info
-$userIds = [1, 2];
-$batchData = $queryCache->getByIds(
-    'user', // 实体名称
-    'users', // 主表名
-    $userIds,
-    ['user', 'info'], // 要获取的属性
-    $attributeConfig // 属性配置
-);
-
-print_r($batchData);
-/*
-Array
-(
-    [1] => Array
-        (
-            [user] => Array
-                (
-                    [id] => 1
-                    [name] => Alice
-                )
-            [info] => Array
-                (
-                    [user_id] => 1
-                    [email] => alice@example.com
-                    [bio] => Software Engineer
-                )
-        )
-    [2] => Array
-        (
-            [user] => Array
-                (
-                    [id] => 2
-                    [name] => Bob
-                )
-            [info] => Array
-                (
-                    [user_id] => 2
-                    [email] => bob@example.com
-                    [bio] => Project Manager
-                )
-        )
-)
-*/
-
-// 第二次获取，将从缓存中读取
-$batchDataFromCache = $queryCache->getByIds('user', 'users', $userIds, ['user', 'info'], $attributeConfig);
-// ...
-```
-
-### 清除缓存 (`forgetCache`)
-
-```php
-// 清除 ID 为 1 的用户的 'info' 属性缓存
-$queryCache->forgetCache('user', 1, 'info');
-
-// 清除 ID 为 2 的用户的 'user' 属性缓存
-$queryCache->forgetCache('user', 2, 'user');
+// 8. 获取缓存统计信息
+$stats = $cache->getStats();
+print_r($stats);
 ```
 
 ## 高级用法
 
 ### 自定义缓存驱动
 
-您可以实现 `Asfop\QueryCache\Cache\CacheDriver` 接口来创建自己的缓存驱动（例如 Redis、Memcached），然后通过 `CacheManager` 注册并使用它。
+您可以实现 `Asfop\DataCache\Cache\CacheDriver` 接口来创建自己的缓存驱动（例如，集成特定的 Redis 客户端或 Memcached），然后将其传递给 `DataCache` 构造函数。这使得底层缓存技术栈的切换对业务代码透明。
 
 ```php
 <?php
 
-use Asfop\QueryCache\Cache\CacheManager;
-use Asfop\QueryCache\Cache\CacheDriver;
+use Asfop\DataCache\Cache\CacheDriver;
+use Asfop\DataCache\DataCache;
 
-// 假设您有一个 Redis 客户端实例
+// 示例：一个简化的 Redis 客户端
 class MyRedisClient { /* ... */ }
 
 class MyRedisCacheDriver implements CacheDriver
@@ -273,122 +377,491 @@ class MyRedisCacheDriver implements CacheDriver
         $this->redisClient = $redisClient;
     }
 
+    // 实现 CacheDriver 接口的所有方法：get, getMultiple, set, setMultiple, forget, has, tag, clearTag, getStats
     public function get(string $key) { /* ... */ }
+    public function getMultiple(array $keys): array { /* ... */ }
     public function set(string $key, $value, int $ttl): bool { /* ... */ }
+    public function setMultiple(array $values, int $ttl): bool { /* ... */ }
     public function forget(string $key): bool { /* ... */ }
     public function has(string $key): bool { /* ... */ }
+    public function tag(string $key, array $tags): bool { /* ... */ }
+    public function clearTag(string $tag): bool { /* ... */ }
+    public function getStats(): array { /* ... */ }
 }
 
-// 在您项目的初始化脚本中注册
-CacheManager::extend('redis', function () {
-    $redisClient = new MyRedisClient(); // 实例化您的 Redis 客户端
-    return new MyRedisCacheDriver($redisClient);
+// 实例化您的自定义驱动
+$redisClient = new MyRedisClient();
+$myCustomCacheDriver = new MyRedisCacheDriver($redisClient);
+
+// 在实例化 DataCache 时使用自定义驱动
+$cache = new DataCache($myCustomCacheDriver, 3600);
+```
+
+### 动态切换缓存驱动
+
+在应用程序的入口文件或初始化阶段，您可以根据配置动态地选择并实例化不同的缓存驱动，然后将其传递给 `DataCache`。这使得您可以在不修改业务逻辑的情况下，轻松切换缓存后端或使用不同的缓存实例。
+
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Asfop\DataCache\Cache\CacheManager;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\Cache\Drivers\RedisDriver;
+use Asfop\DataCache\DataCache;
+
+// --- 1. 定义你的缓存配置 ---
+// 假设这是你的应用配置文件或环境变量
+$appConfig = [
+    'cache_driver' => 'redis_main', // 可以是 'array', 'redis_main', 'redis_secondary'
+    'redis_main_host' => '127.0.0.1',
+    'redis_main_port' => 6379,
+    'redis_secondary_host' => '127.0.0.1',
+    'redis_secondary_port' => 6380,
+    // ... 其他配置
+];
+
+// --- 2. 注册自定义缓存驱动 ---
+// 注册 'redis_main' 驱动
+CacheManager::extend('redis_main', function () use ($appConfig) {
+    $redis = new Redis(); // 假设 Redis 扩展已安装
+    $redis->connect($appConfig['redis_main_host'], $appConfig['redis_main_port']);
+    return new RedisDriver($redis);
 });
 
-// 然后在实例化 QueryCache 时使用
-$queryCache = new QueryCache($dbAdapter, CacheManager::resolve('redis'));
+// 注册 'redis_secondary' 驱动 (另一个 Redis 实例)
+CacheManager::extend('redis_secondary', function () use ($appConfig) {
+    $redis = new Redis();
+    $redis->connect($appConfig['redis_secondary_host'], $appConfig['redis_secondary_port']);
+    return new RedisDriver($redis);
+});
+
+// 注册 'array' 驱动 (如果需要，ArrayDriver 不需要额外配置)
+CacheManager::extend('array', function () {
+    return new ArrayDriver();
+});
+
+// --- 3. 根据配置选择并初始化 DataCache ---
+try {
+    $selectedDriverName = $appConfig['cache_driver'];
+    $cacheDriver = CacheManager::resolve($selectedDriverName);
+    $dataCache = new DataCache($cacheDriver, 3600); // 默认 TTL 3600 秒
+
+    echo "DataCache 已使用驱动: " . $selectedDriverName . "\n";
+
+    // --- 4. 使用 DataCache ---
+    $key = 'my_app_data';
+    $value = ['message' => 'Hello from DataCache!'];
+
+    $dataCache->set($key, $value);
+    $retrieved = $dataCache->get($key);
+
+    echo "获取到的数据: " . json_encode($retrieved) . "\n";
+
+} catch (InvalidArgumentException $e) {
+    echo "错误: " . $e->getMessage() . "\n";
+} catch (RedisException $e) { // 捕获 Redis 连接错误
+    echo "Redis 连接错误: " . $e->getMessage() . "\n";
+}
+
+?>
 ```
 
-### 自定义数据库适配器
+### 动态切换缓存驱动
 
-`Query Cache` 库不包含任何具体的数据库连接实现。您需要实现 `Asfop\QueryCache\Database\DatabaseAdapter` 接口来创建自己的数据库适配器，以支持您项目所使用的数据库连接或 ORM。
-
-以下是一个基于 PDO 的示例实现，您可以根据自己的需求进行调整：
+在应用程序的入口文件或初始化阶段，您可以根据配置动态地选择并实例化不同的缓存驱动，然后将其传递给 `DataCache`。这使得您可以在不修改业务逻辑的情况下，轻松切换缓存后端或使用不同的缓存实例。
 
 ```php
 <?php
 
-namespace MyProject\Database;
+require_once __DIR__ . '/vendor/autoload.php';
 
-use Asfop\QueryCache\Database\DatabaseAdapter;
-use PDO;
+use Asfop\DataCache\Cache\CacheManager;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\Cache\Drivers\RedisDriver;
+use Asfop\DataCache\DataCache;
 
-class MyPdoAdapter implements DatabaseAdapter
-{
-    private PDO $pdo;
+// --- 1. 定义你的缓存配置 ---
+// 假设这是你的应用配置文件或环境变量
+$appConfig = [
+    'cache_driver' => 'redis_main', // 可以是 'array', 'redis_main', 'redis_secondary'
+    'redis_main_host' => '127.0.0.1',
+    'redis_main_port' => 6379,
+    'redis_secondary_host' => '127.0.0.1',
+    'redis_secondary_port' => 6380,
+    // ... 其他配置
+];
 
-    public function __construct(PDO $pdo)
-    {
-        $this->pdo = $pdo;
-    }
+// --- 2. 注册自定义缓存驱动 ---
+// 注册 'redis_main' 驱动
+CacheManager::extend('redis_main', function () use ($appConfig) {
+    $redis = new Redis(); // 假设 Redis 扩展已安装
+    $redis->connect($appConfig['redis_main_host'], $appConfig['redis_main_port']);
+    return new RedisDriver($redis);
+});
 
-    public function find(string $table, string $idColumn, $id, array $columns = ['*']): ?array
-    {
-        $cols = implode(',', $columns);
-        $stmt = $this->pdo->prepare("SELECT {$cols} FROM `{$table}` WHERE `{$idColumn}` = :id LIMIT 1");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+// 注册 'redis_secondary' 驱动 (另一个 Redis 实例)
+CacheManager::extend('redis_secondary', function () use ($appConfig) {
+    $redis = new Redis();
+    $redis->connect($appConfig['redis_secondary_host'], $appConfig['redis_secondary_port']);
+    return new RedisDriver($redis);
+});
 
-        return $result ?: null;
-    }
+// 注册 'array' 驱动 (如果需要，ArrayDriver 不需要额外配置)
+CacheManager::extend('array', function () {
+    return new ArrayDriver();
+});
 
-    public function findMany(string $table, string $idColumn, array $ids, array $columns = ['*']): array
-    {
-        if (empty($ids)) {
-            return [];
-        }
+// --- 3. 根据配置选择并初始化 DataCache ---
+try {
+    $selectedDriverName = $appConfig['cache_driver'];
+    $cacheDriver = CacheManager::resolve($selectedDriverName);
+    $dataCache = new DataCache($cacheDriver, 3600); // 默认 TTL 3600 秒
 
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $cols = implode(',', $columns);
+    echo "DataCache 已使用驱动: " . $selectedDriverName . "\n";
 
-        $stmt = $this->pdo->prepare("SELECT {$cols} FROM `{$table}` WHERE `{$idColumn}` IN ({$placeholders})");
-        foreach ($ids as $i => $id) {
-            $stmt->bindValue($i + 1, $id);
-        }
-        $stmt->execute();
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // --- 4. 使用 DataCache ---
+    $key = 'my_app_data';
+    $value = ['message' => 'Hello from DataCache!'];
 
-        $indexedResults = [];
-        foreach ($results as $row) {
-            $indexedResults[$row[$idColumn]] = $row;
-        }
+    $dataCache->set($key, $value);
+    $retrieved = $dataCache->get($key);
 
-        return $indexedResults;
-    }
+    echo "获取到的数据: " . json_encode($retrieved) . "\n";
+
+} catch (InvalidArgumentException $e) {
+    echo "错误: " . $e->getMessage() . "\n";
+} catch (RedisException $e) { // 捕获 Redis 连接错误
+    echo "Redis 连接错误: " . $e->getMessage() . "\n";
 }
 
-// 然后在实例化 QueryCache 时使用
-$myCustomDbAdapter = new MyPdoAdapter($pdo); // 传入您的 PDO 实例
-$queryCache = new QueryCache($myCustomDbAdapter, $cacheDriver);
+?>
 ```
 
-### 自定义缓存键生成器
+### 使用静态门面
 
-您可以实现 `Asfop\QueryCache\Key\KeyGenerator` 接口来创建自己的缓存键生成器，并在实例化 `QueryCache` 时传入。
+为了更便捷地使用 `DataCache`，您可以选择使用静态门面。这允许您通过静态方法直接调用 `DataCache` 的功能，而无需在每个需要缓存的地方都注入 `DataCache` 实例。
+
+**初始化门面**
+
+在应用程序的入口文件或服务提供者中，您需要将 `DataCache` 实例绑定到门面：
 
 ```php
 <?php
 
-use Asfop\QueryCache\Key\KeyGenerator;
+require_once __DIR__ . '/vendor/autoload.php';
 
-class MyCustomKeyGenerator implements KeyGenerator
-{
-    public function generate(string $entityName, $identifier, string $relationName): string { /* ... */ }
+use Asfop\DataCache\Cache\CacheManager;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\DataCache;
+use Asfop\DataCache\DataCacheFacade;
+
+// 假设你已经根据配置初始化了 $dataCache 实例
+$arrayDriver = new ArrayDriver();
+$dataCacheInstance = new DataCache($arrayDriver, 3600);
+
+// 将 DataCache 实例设置到门面中
+DataCacheFacade::setInstance($dataCacheInstance);
+
+// 现在你可以在应用的任何地方通过静态方法使用 DataCache
+$key = 'facade_data';
+$value = ['message' => 'Hello from Facade!'];
+
+DataCacheFacade::set($key, $value);
+$retrieved = DataCacheFacade::get($key);
+
+echo "通过门面获取到的数据: " . json_encode($retrieved) . "\n";
+
+?>
+```
+
+**使用门面**
+
+一旦门面被初始化，您就可以在代码的任何地方直接使用静态方法：
+
+```php
+<?php
+
+use Asfop\DataCache\DataCacheFacade;
+
+// 获取数据
+$user = DataCacheFacade::get('user:1', function() {
+    // 从数据源获取
+    return ['id' => 1, 'name' => 'Alice'];
+});
+
+// 存储数据
+DataCacheFacade::set('product:101', ['name' => 'New Product'], 3600);
+
+// 批量获取
+$products = DataCacheFacade::getMultiple(['product:1', 'product:2'], function($missingKeys) {
+    // 批量从数据源获取
+    return [];
+});
+
+// 清除标签
+DataCacheFacade::clearTag('users');
+
+// 获取统计
+$stats = DataCacheFacade::getStats();
+
+?>
+```
+
+### 多级缓存
+
+多级缓存允许您将多个缓存驱动组合起来，形成一个缓存层级。例如，您可以将一个快速的内存缓存（`ArrayDriver`）作为一级缓存，一个持久化的 Redis 缓存（`RedisDriver`）作为二级缓存。当请求数据时，系统会首先尝试从一级缓存获取，如果未命中，则会尝试从二级缓存获取，并回填到一级缓存。
+
+**初始化多级缓存驱动**
+
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\Cache\Drivers\RedisDriver;
+use Asfop\DataCache\Cache\Drivers\MultiLevelCacheDriver;
+use Asfop\DataCache\DataCache;
+
+// 1. 初始化各个缓存驱动实例
+$arrayDriver = new ArrayDriver(); // 一级缓存：内存
+
+$redis = new Redis(); // 假设 Redis 扩展已安装
+$redis->connect('127.0.0.1', 6379);
+$redisDriver = new RedisDriver($redis); // 二级缓存：Redis
+
+// 2. 创建 MultiLevelCacheDriver，按优先级从高到低传入驱动
+$multiLevelDriver = new MultiLevelCacheDriver([
+    $arrayDriver, // 优先级最高
+    $redisDriver  // 优先级次之
+]);
+
+// 3. 使用 MultiLevelCacheDriver 初始化 DataCache
+$dataCache = new DataCache($multiLevelDriver, 3600); // 默认 TTL 3600 秒
+
+// --- 4. 使用 DataCache ---
+$key = 'multi_level_data';
+$value = ['message' => 'Hello from Multi-Level Cache!'];
+
+// 第一次设置，会同时写入 ArrayDriver 和 RedisDriver
+$dataCache->set($key, $value);
+
+// 第一次获取，会从 ArrayDriver 获取（命中一级缓存）
+$retrieved = $dataCache->get($key);
+echo "获取到的数据 (一级缓存): " . json_encode($retrieved) . "\n";
+
+// 清除一级缓存，模拟一级缓存失效
+$arrayDriver->forget($key);
+
+// 第二次获取，会从 RedisDriver 获取（命中二级缓存），并回填到 ArrayDriver
+$retrieved = $dataCache->get($key);
+echo "获取到的数据 (二级缓存并回填): " . json_encode($retrieved) . "\n";
+
+// 此时 ArrayDriver 应该又有了这个数据
+if ($arrayDriver->has($key)) {
+    echo "数据已回填到一级缓存。\n";
 }
 
-$myKeyGenerator = new MyCustomKeyGenerator();
-$queryCache = new QueryCache($dbAdapter, $cacheDriver, $myKeyGenerator);
+?>
 ```
 
-## 测试
+### 动态切换缓存驱动
 
-本包提供了一套完整的测试。要运行测试，请在项目根目录下执行以下命令：
+在应用程序的入口文件或初始化阶段，您可以根据配置动态地选择并实例化不同的缓存驱动，然后将其传递给 `DataCache`。这使得您可以在不修改业务逻辑的情况下，轻松切换缓存后端或使用不同的缓存实例。
 
-```bash
-./vendor/bin/phpunit
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Asfop\DataCache\Cache\CacheManager;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\Cache\Drivers\RedisDriver;
+use Asfop\DataCache\DataCache;
+
+// --- 1. 定义你的缓存配置 ---
+// 假设这是你的应用配置文件或环境变量
+$appConfig = [
+    'cache_driver' => 'redis_main', // 可以是 'array', 'redis_main', 'redis_secondary'
+    'redis_main_host' => '127.0.0.1',
+    'redis_main_port' => 6379,
+    'redis_secondary_host' => '127.0.0.1',
+    'redis_secondary_port' => 6380,
+    // ... 其他配置
+];
+
+// --- 2. 注册自定义缓存驱动 ---
+// 注册 'redis_main' 驱动
+CacheManager::extend('redis_main', function () use ($appConfig) {
+    $redis = new Redis(); // 假设 Redis 扩展已安装
+    $redis->connect($appConfig['redis_main_host'], $appConfig['redis_main_port']);
+    return new RedisDriver($redis);
+});
+
+// 注册 'redis_secondary' 驱动 (另一个 Redis 实例)
+CacheManager::extend('redis_secondary', function () use ($appConfig) {
+    $redis = new Redis();
+    $redis->connect($appConfig['redis_secondary_host'], $appConfig['redis_secondary_port']);
+    return new RedisDriver($redis);
+});
+
+// 注册 'array' 驱动 (如果需要，ArrayDriver 不需要额外配置)
+CacheManager::extend('array', function () {
+    return new ArrayDriver();
+});
+
+// --- 3. 根据配置选择并初始化 DataCache ---
+try {
+    $selectedDriverName = $appConfig['cache_driver'];
+    $cacheDriver = CacheManager::resolve($selectedDriverName);
+    $dataCache = new DataCache($cacheDriver, 3600); // 默认 TTL 3600 秒
+
+    echo "DataCache 已使用驱动: " . $selectedDriverName . "\n";
+
+    // --- 4. 使用 DataCache ---
+    $key = 'my_app_data';
+    $value = ['message' => 'Hello from DataCache!'];
+
+    $dataCache->set($key, $value);
+    $retrieved = $dataCache->get($key);
+
+    echo "获取到的数据: " . json_encode($retrieved) . "\n";
+
+} catch (InvalidArgumentException $e) {
+    echo "错误: " . $e->getMessage() . "\n";
+} catch (RedisException $e) { // 捕获 Redis 连接错误
+    echo "Redis 连接错误: " . $e->getMessage() . "\n";
+}
+
+?>
 ```
 
-要生成代码覆盖率报告：
+### 使用静态门面
 
-```bash
-./vendor/bin/phpunit --coverage-html build/coverage
+为了更便捷地使用 `DataCache`，您可以选择使用静态门面。这允许您通过静态方法直接调用 `DataCache` 的功能，而无需在每个需要缓存的地方都注入 `DataCache` 实例。
+
+**初始化门面**
+
+在应用程序的入口文件或服务提供者中，您需要将 `DataCache` 实例绑定到门面：
+
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Asfop\DataCache\Cache\CacheManager;
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\DataCache;
+use Asfop\DataCache\DataCacheFacade;
+
+// 假设你已经根据配置初始化了 $dataCache 实例
+$arrayDriver = new ArrayDriver();
+$dataCacheInstance = new DataCache($arrayDriver, 3600);
+
+// 将 DataCache 实例设置到门面中
+DataCacheFacade::setInstance($dataCacheInstance);
+
+// 现在你可以在应用的任何地方通过静态方法使用 DataCache
+$key = 'facade_data';
+$value = ['message' => 'Hello from Facade!'];
+
+DataCacheFacade::set($key, $value);
+$retrieved = DataCacheFacade::get($key);
+
+echo "通过门面获取到的数据: " . json_encode($retrieved) . "\n";
+
+?>
 ```
 
-## 贡献
+**使用门面**
 
-欢迎各种形式的贡献！如果您有任何 Bug 反馈或功能请求，请随时提交 Pull Request 或创建 Issue。
+一旦门面被初始化，您就可以在代码的任何地方直接使用静态方法：
 
-## 许可证
+```php
+<?php
 
-Query Cache 是一个遵循 [MIT 许可](LICENSE) 的开源软件。
+use Asfop\DataCache\DataCacheFacade;
+
+// 获取数据
+$user = DataCacheFacade::get('user:1', function() {
+    // 从数据源获取
+    return ['id' => 1, 'name' => 'Alice'];
+});
+
+// 存储数据
+DataCacheFacade::set('product:101', ['name' => 'New Product'], 3600);
+
+// 批量获取
+$products = DataCacheFacade::getMultiple(['product:1', 'product:2'], function($missingKeys) {
+    // 批量从数据源获取
+    return [];
+});
+
+// 清除标签
+DataCacheFacade::clearTag('users');
+
+// 获取统计
+$stats = DataCacheFacade::getStats();
+
+?>
+```
+
+### 多级缓存
+
+多级缓存允许您将多个缓存驱动组合起来，形成一个缓存层级。例如，您可以将一个快速的内存缓存（`ArrayDriver`）作为一级缓存，一个持久化的 Redis 缓存（`RedisDriver`）作为二级缓存。当请求数据时，系统会首先尝试从一级缓存获取，如果未命中，则会尝试从二级缓存获取，并回填到一级缓存。
+
+**初始化多级缓存驱动**
+
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Asfop\DataCache\Cache\Drivers\ArrayDriver;
+use Asfop\DataCache\Cache\Drivers\RedisDriver;
+use Asfop\DataCache\Cache\Drivers\MultiLevelCacheDriver;
+use Asfop\DataCache\DataCache;
+
+// 1. 初始化各个缓存驱动实例
+$arrayDriver = new ArrayDriver(); // 一级缓存：内存
+
+$redis = new Redis(); // 假设 Redis 扩展已安装
+$redis->connect('127.0.0.1', 6379);
+$redisDriver = new RedisDriver($redis); // 二级缓存：Redis
+
+// 2. 创建 MultiLevelCacheDriver，按优先级从高到低传入驱动
+$multiLevelDriver = new MultiLevelCacheDriver([
+    $arrayDriver, // 优先级最高
+    $redisDriver  // 优先级次之
+]);
+
+// 3. 使用 MultiLevelCacheDriver 初始化 DataCache
+$dataCache = new DataCache($multiLevelDriver, 3600); // 默认 TTL 3600 秒
+
+// --- 4. 使用 DataCache ---
+$key = 'multi_level_data';
+$value = ['message' => 'Hello from Multi-Level Cache!'];
+
+// 第一次设置，会同时写入 ArrayDriver 和 RedisDriver
+$dataCache->set($key, $value);
+
+// 第一次获取，会从 ArrayDriver 获取（命中一级缓存）
+$retrieved = $dataCache->get($key);
+echo "获取到的数据 (一级缓存): " . json_encode($retrieved) . "\n";
+
+// 清除一级缓存，模拟一级缓存失效
+$arrayDriver->forget($key);
+
+// 第二次获取，会从 RedisDriver 获取（命中二级缓存），并回填到 ArrayDriver
+$retrieved = $dataCache->get($key);
+echo "获取到的数据 (二级缓存并回填): " . json_encode($retrieved) . "\n";
+
+// 此时 ArrayDriver 应该又有了这个数据
+if ($arrayDriver->has($key)) {
+    echo "数据已回填到一级缓存。\n";
+}
+
+?>
+
