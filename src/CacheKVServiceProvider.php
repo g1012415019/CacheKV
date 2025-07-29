@@ -3,7 +3,6 @@
 
 namespace Asfop\CacheKV;
 
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 use Asfop\CacheKV\CacheKV;
 use Asfop\CacheKV\CacheKVFacade;
 

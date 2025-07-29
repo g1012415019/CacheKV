@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Asfop\CacheKV;
 
-use Asfop\CacheKV\CacheKV;
-
 /**
  * DataCacheFacade 提供了一个静态门面，允许通过静态方法便捷地访问 DataCache 的功能。
  * 这在不希望通过依赖注入方式获取 DataCache 实例的场景下非常有用。

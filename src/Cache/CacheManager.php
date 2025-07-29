@@ -96,7 +96,7 @@ class CacheManager
      */
     public static function getDefaultDriver(): string
     {
-        return 'array';
+        return 'redis';
     }
 
     /**
