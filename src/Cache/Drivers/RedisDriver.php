@@ -101,20 +101,20 @@ class RedisDriver implements CacheDriver
     public function setMultiple(array $values, $ttl)
     {
         $pipeline = $this->redis->pipeline();
-        
+
         foreach ($values as $key => $value) {
             $pipeline->setex($key, $ttl, serialize($value));
         }
-        
+
         $results = $pipeline->exec();
-        
+
         // Check if all operations were successful
         foreach ($results as $result) {
             if ($result === false) {
                 return false;
             }
         }
-        
+
         return true;
     }
 

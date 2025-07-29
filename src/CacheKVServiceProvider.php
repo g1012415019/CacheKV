@@ -1,4 +1,5 @@
 <?php
+
 // src/CacheKVServiceProvider.php
 
 namespace Asfop\CacheKV;
@@ -16,10 +17,10 @@ class CacheKVServiceProvider
     {
         // 加载默认配置
         $defaultConfig = require __DIR__ . '/config/cachekv.php';
-        
+
         // 如果传入自定义配置，则合并
         $finalConfig = $config ? array_merge($defaultConfig, $config) : $defaultConfig;
-        
+
         // 初始化驱动
         $storeName = $finalConfig['default'];
         $driverName = $finalConfig['stores'][$storeName]['driver'];
@@ -27,13 +28,12 @@ class CacheKVServiceProvider
         $ttl = $finalConfig['stores'][$storeName]['ttl'] ?? 3600;
 
         if (isset($finalConfig['stores'][$storeName]['ttl_jitter'])) {
-        $jitter = $finalConfig['stores'][$storeName]['ttl_jitter'];
-        $ttl += rand(-$jitter, $jitter); // 随机浮动
-         }
-        
+            $jitter = $finalConfig['stores'][$storeName]['ttl_jitter'];
+            $ttl += rand(-$jitter, $jitter); // 随机浮动
+        }
+
         // 注册到门面
         $cacheKV = new CacheKV($driver, $ttl);
         CacheKVFacade::setInstance($cacheKV);
     }
 }
-
