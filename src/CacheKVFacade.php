@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Asfop\CacheKV;
 
-use Asfop\CacheKV\DataCache;
+use Asfop\CacheKV\CacheKV;
 
 /**
  * DataCacheFacade 提供了一个静态门面，允许通过静态方法便捷地访问 DataCache 的功能。
  * 这在不希望通过依赖注入方式获取 DataCache 实例的场景下非常有用。
  * 缓存的数据结构是键值对（key-value），其中 key 是字符串，value 可以是任意可序列化的 PHP 数据类型。
  */
-class DataCacheFacade
+class CacheKVFacade
 {
     /**
      * @var DataCache|null 存储 DataCache 实例的静态属性。
      * 这是一个单例模式的实现，确保在整个应用程序生命周期中只有一个 DataCache 实例被门面使用。
      */
-    protected static ?DataCache $instance = null;
+    protected static ?CacheKV $instance = null;
 
     /**
      * 设置 DataCache 实例。
@@ -26,7 +26,7 @@ class DataCacheFacade
      *
      * @param DataCache $instance 要设置的 DataCache 实例。
      */
-    public static function setInstance(DataCache $instance): void
+    public static function setInstance(CacheKV $instance): void
     {
         self::$instance = $instance;
     }
@@ -36,13 +36,9 @@ class DataCacheFacade
      * 如果在调用此方法之前没有通过 `setInstance` 方法设置实例，则会抛出运行时异常。
      *
      * @return DataCache 当前使用的 DataCache 实例。
-     * @throws \RuntimeException 如果 DataCache 实例尚未设置。
      */
-    protected static function getInstance(): DataCache
+    public static function getInstance(): ?CacheKV
     {
-        if (self::$instance === null) {
-            throw new \RuntimeException("DataCache instance has not been set.");
-        }
         return self::$instance;
     }
 

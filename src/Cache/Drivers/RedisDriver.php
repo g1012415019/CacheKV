@@ -1,11 +1,8 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Asfop\CacheKV\Cache\Drivers;
 
 use Asfop\CacheKV\Cache\CacheDriver;
-use Asfop\CacheKV\Tests\TestDoubles\DummyRedis as Redis;
 
 /**
  * RedisDriver 是一个基于 Redis 数据库实现的缓存驱动。
@@ -14,30 +11,21 @@ use Asfop\CacheKV\Tests\TestDoubles\DummyRedis as Redis;
  */
 class RedisDriver implements CacheDriver
 {
-    /**
-     * @var Redis $redis Redis 客户端实例。
-     * 用于与 Redis 服务器进行通信，执行缓存操作。
-     */
-    private Redis $redis;
+    protected static $redisFactory;
+    protected $redis;
 
-    /**
-     * @var int $hits 缓存命中次数统计。
-     */
-    private int $hits = 0;
-
-    /**
-     * @var int $misses 缓存未命中次数统计。
-     */
-    private int $misses = 0;
-
-    /**
-     * 构造函数。
-     *
-     * @param Redis $redis Redis 客户端实例，用于执行实际的 Redis 命令。
-     */
-    public function __construct(Redis $redis)
+    public function __construct()
     {
-        $this->redis = $redis;
+        if (static::$redisFactory) {
+            $this->redis = call_user_func(static::$redisFactory);
+        } else {
+            throw new \Exception('Redis factory not configured.');
+        }
+    }
+
+    public static function setRedisFactory(callable $factory)
+    {
+        static::$redisFactory = $factory;
     }
 
     /**
@@ -48,7 +36,7 @@ class RedisDriver implements CacheDriver
      * @param string $key 缓存项的唯一键名。
      * @return mixed|null 缓存中存储的值，如果键不存在或已过期，则返回 null。
      */
-    public function get(string $key)
+    public function get($key)
     {
         $value = $this->redis->get($key);
 
@@ -70,7 +58,7 @@ class RedisDriver implements CacheDriver
      * @return array 一个关联数组，其中键是缓存项的键名，值是对应的缓存数据。
      *               如果某个键在缓存中不存在或已过期，则该键不会出现在返回的数组中。
      */
-    public function getMultiple(array $keys): array
+    public function getMultiple(array $keys)
     {
         $values = $this->redis->mget($keys);
 
@@ -95,7 +83,7 @@ class RedisDriver implements CacheDriver
      * @param int $ttl 缓存有效期（秒）。
      * @return bool 存储操作是否成功。
      */
-    public function set(string $key, $value, int $ttl): bool
+    public function set($key, $value, $ttl)
     {
         return $this->redis->setex($key, $ttl, serialize($value));
     }
@@ -110,7 +98,25 @@ class RedisDriver implements CacheDriver
      * @param int $ttl 缓存有效期（秒）。
      * @return bool 存储操作是否成功。由于使用了管道，通常总是返回 true，除非 Redis 连接出现问题。
      */
-    public function setMultiple(array $values, int $ttl): bool
+    public function setMultiple(array $values, $ttl)
+    {
+        $pipeline = $this->redis->pipeline();
+        
+        foreach ($values as $key => $value) {
+            $pipeline->setex($key, $ttl, serialize($value));
+        }
+        
+        $results = $pipeline->exec();
+        
+        // Check if all operations were successful
+        foreach ($results as $result) {
+            if ($result === false) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
 
     /**
      * 从 Redis 缓存中移除指定键的缓存项。
@@ -119,7 +125,7 @@ class RedisDriver implements CacheDriver
      * @param string $key 要移除的缓存项的唯一键名。
      * @return bool 移除操作是否成功。
      */
-    public function forget(string $key): bool
+    public function forget($key)
     {
         // 移除键本身
         $deleted = $this->redis->del($key) > 0;
@@ -143,7 +149,7 @@ class RedisDriver implements CacheDriver
      * @param string $key 缓存项的唯一键名。
      * @return bool 如果缓存中存在该键，则返回 true；否则返回 false。
      */
-    public function has(string $key): bool
+    public function has($key)
     {
         return $this->redis->exists($key) === 1;
     }
@@ -157,7 +163,7 @@ class RedisDriver implements CacheDriver
      * @param array $tags 包含一个或多个标签名的数组。
      * @return bool 关联操作是否成功。
      */
-    public function tag(string $key, array $tags): bool
+    public function tag($key, array $tags)
     {
         $pipeline = $this->redis->pipeline();
 
@@ -179,7 +185,7 @@ class RedisDriver implements CacheDriver
      * @param string $tag 要清除的标签名。
      * @return bool 清除操作是否成功。如果标签不存在或没有关联的键，则返回 false；否则返回 true。
      */
-    public function clearTag(string $tag): bool
+    public function clearTag($tag)
     {
         $formattedTagKey = 'tag_keys:' . $tag;
         $keysToClear = $this->redis->smembers($formattedTagKey);
@@ -207,7 +213,17 @@ class RedisDriver implements CacheDriver
      *
      * @return array 包含 'hits'（缓存命中次数）、'misses'（缓存未命中次数）和 'hit_rate'（缓存命中率）的关联数组。
      */
-    public function getStats(): array
+    public function getStats()
+    {
+        $total = $this->hits + $this->misses;
+        $hitRate = $total > 0 ? ($this->hits / $total) * 100 : 0;
+
+        return [
+            'hits' => $this->hits,
+            'misses' => $this->misses,
+            'hit_rate' => round($hitRate, 2)
+        ];
+    }
 
     /**
      * 更新 Redis 缓存中指定键的缓存项的过期时间。
@@ -218,7 +234,7 @@ class RedisDriver implements CacheDriver
      * @param int $ttl 新的缓存有效期（秒）。
      * @return bool 更新操作是否成功。如果键不存在，则返回 false；否则返回 true。
      */
-    public function touch(string $key, int $ttl): bool
+    public function touch($key, $ttl)
     {
         return $this->redis->expire($key, $ttl);
     }

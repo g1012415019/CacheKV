@@ -66,9 +66,7 @@ class CacheManager
             case 'array':
                 return new ArrayDriver();
             case 'redis':
-                // RedisDriver 需要一个 Redis 实例，这里暂时无法直接创建
-                // 需要通过 extend 方法注册一个创建器，或者在 CacheManager 中添加配置管理
-                throw new InvalidArgumentException("Redis driver must be configured via CacheManager::extend().");
+                return new RedisDriver();
             case 'multi_level':
                 throw new InvalidArgumentException("Multi-level driver must be configured via CacheManager::extend().");
             default:

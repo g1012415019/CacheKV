@@ -4,28 +4,27 @@ declare(strict_types=1);
 
 namespace Asfop\CacheKV;
 
-use Asfop\CacheKV\Cache\CacheDriver;
+use Asfop\CacheKV\Cache\CacheManager;
+use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
-/**
- * DataCache 类是本缓存库的核心入口，提供统一的键值对缓存操作接口。
- * 它封装了“先从缓存读取，若无则从数据源获取并回填缓存”的常见模式，
- * 支持单键、多键操作、基于标签的缓存失效管理，以及基础的性能统计功能。
- *
- * 缓存的数据结构是键值对（key-value），其中 key 是字符串，value 可以是任意可序列化的 PHP 数据类型。
- */
-class DataCache
+class CacheKV
 {
+    public static function setRedisFactory(callable $factory)
+    {
+        RedisDriver::setRedisFactory($factory);
+    }
+
     /**
      * @var CacheDriver 缓存驱动实例。
      * 负责与底层缓存存储（如 Redis, Array 等）进行实际的数据交互。
      */
-    private CacheDriver $driver;
+    private $driver;
 
     /**
      * @var int $defaultTtl 默认缓存时间（秒）。
      * 当调用 set 或 get 方法时未指定 TTL (Time To Live) 时，将使用此默认值。
      */
-    private int $defaultTtl;
+    private $defaultTtl;
 
     /**
      * 构造函数。
@@ -33,7 +32,7 @@ class DataCache
      * @param CacheDriver $driver 缓存驱动实例，用于实际的数据存储和检索。
      * @param int $defaultTtl 默认缓存有效期（秒）。
      */
-    public function __construct(CacheDriver $driver, int $defaultTtl = 3600)
+    public function __construct(CacheDriver $driver, $defaultTtl = 3600)
     {
         $this->driver = $driver;
         $this->defaultTtl = $defaultTtl;
@@ -51,7 +50,7 @@ class DataCache
      * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
      * @return mixed|null 缓存中存储的值，如果键不存在且未提供回调函数，则返回 null。
      */
-    public function get(string $key, ?callable $callback = null, ?int $ttl = null)
+    public function get($key, $callback = null, $ttl = null)
     {
         $value = $this->driver->get($key);
 
@@ -81,9 +80,9 @@ class DataCache
      * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
      * @return bool 存储操作是否成功。
      */
-    public function set(string $key, $value, ?int $ttl = null): bool
+    public function set($key, $value, $ttl = null)
     {
-        return $this->driver->set($key, $value, $ttl ?? $this->defaultTtl);
+        return $this->driver->set($key, $value, $ttl !== null ? $ttl : $this->defaultTtl);
     }
 
     /**
@@ -96,9 +95,9 @@ class DataCache
      * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
      * @return bool 存储操作是否成功。
      */
-    public function setWithTag(string $key, $value, $tags, ?int $ttl = null): bool
+    public function setWithTag($key, $value, $tags, $ttl = null)
     {
-        $result = $this->driver->set($key, $value, $ttl ?? $this->defaultTtl);
+        $result = $this->driver->set($key, $value, $ttl !== null ? $ttl : $this->defaultTtl);
         if ($result) {
             $this->driver->tag($key, (array) $tags);
         }
@@ -117,7 +116,7 @@ class DataCache
      * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
      * @return array 包含所有请求键的键值对数组。如果某个键在缓存和数据源中都不存在，则该键不会出现在返回数组中。
      */
-    public function getMultiple(array $keys, callable $callback, ?int $ttl = null): array
+    public function getMultiple($keys, $callback, $ttl = null)
     {
         $cachedValues = $this->driver->getMultiple($keys);
 
@@ -125,7 +124,7 @@ class DataCache
         $results = [];
 
         foreach ($keys as $originalKey) {
-            if (isset($cachedValues[$originalKey])) {
+            if (array_key_exists($originalKey, $cachedValues)) {
                 $results[$originalKey] = $cachedValues[$originalKey];
             } else {
                 $missingKeys[] = $originalKey;
@@ -135,7 +134,7 @@ class DataCache
         if (!empty($missingKeys)) {
             $fetchedValues = call_user_func($callback, $missingKeys);
             if (!empty($fetchedValues)) {
-                $this->driver->setMultiple($fetchedValues, $ttl ?? $this->defaultTtl);
+                $this->driver->setMultiple($fetchedValues, $ttl !== null ? $ttl : $this->defaultTtl);
             }
             foreach ($fetchedValues as $key => $value) {
                 $results[$key] = $value;
@@ -151,7 +150,7 @@ class DataCache
      * @param string $key 要移除的缓存项的键名。
      * @return bool 移除操作是否成功。
      */
-    public function forget(string $key): bool
+    public function forget($key)
     {
         return $this->driver->forget($key);
     }
@@ -163,7 +162,7 @@ class DataCache
      * @param string $tag 要清除的标签名。
      * @return bool 清除操作是否成功。
      */
-    public function clearTag(string $tag): bool
+    public function clearTag($tag)
     {
         return $this->driver->clearTag($tag);
     }
@@ -174,7 +173,7 @@ class DataCache
      * @param string $key 要检查的缓存项的键名。
      * @return bool 如果缓存中存在该键且未过期，则返回 true；否则返回 false。
      */
-    public function has(string $key): bool
+    public function has($key)
     {
         return $this->driver->has($key);
     }
@@ -184,7 +183,7 @@ class DataCache
      *
      * @return array 包含 'hits'（缓存命中次数）、'misses'（缓存未命中次数）和 'hit_rate'（缓存命中率）的关联数组。
      */
-    public function getStats(): array
+    public function getStats()
     {
         return $this->driver->getStats();
     }
