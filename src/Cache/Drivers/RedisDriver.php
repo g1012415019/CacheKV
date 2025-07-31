@@ -13,6 +13,8 @@ class RedisDriver implements CacheDriver
 {
     protected static $redisFactory;
     protected $redis;
+    protected $hits = 0;
+    protected $misses = 0;
 
     public function __construct()
     {

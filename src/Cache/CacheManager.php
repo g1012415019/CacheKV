@@ -1,11 +1,9 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Asfop\CacheKV\Cache;
 
+use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use InvalidArgumentException;
 
 /**
  * CacheManager 负责管理和解析不同的缓存驱动实例。
@@ -17,13 +15,27 @@ class CacheManager
      * @var array 存储已解析的缓存驱动实例。
      * 键是驱动名称，值是对应的 CacheDriver 实例。
      */
-    private static $drivers = [];
+    private static $drivers = array();
 
     /**
      * @var array 存储自定义的缓存驱动创建器（闭包）。
      * 键是驱动名称，值是一个用于创建 CacheDriver 实例的匿名函数。
      */
-    private static $customCreators = [];
+    private static $customCreators = array();
+
+    /**
+     * @var array 配置数组
+     */
+    private $config;
+
+    /**
+     * 构造函数
+     * @param array $config 配置数组
+     */
+    public function __construct($config = array())
+    {
+        $this->config = $config;
+    }
 
     /**
      * 解析并获取一个缓存驱动实例。
@@ -32,14 +44,14 @@ class CacheManager
      *
      * @param string|null $name 驱动的唯一名称。如果为 null，将使用 `getDefaultDriver()` 方法返回的默认驱动名称。
      * @return CacheDriver 对应名称的缓存驱动实例。
-     * @throws InvalidArgumentException 如果指定的驱动名称无效或未被支持。
+     * @throws \InvalidArgumentException 如果指定的驱动名称无效或未被支持。
      */
-    public static function resolve(?string $name = null): CacheDriver
+    public function resolve($name = null)
     {
-        $name = $name ?: self::getDefaultDriver();
+        $name = $name ?: $this->getDefaultDriver();
 
         if (!isset(self::$drivers[$name])) {
-            self::$drivers[$name] = self::createDriver($name);
+            self::$drivers[$name] = $this->createDriver($name);
         }
 
         return self::$drivers[$name];
@@ -48,13 +60,13 @@ class CacheManager
     /**
      * 根据给定的驱动名称创建一个新的缓存驱动实例。
      * 优先检查是否存在自定义的创建器（通过 `extend` 方法注册），如果存在则调用自定义创建器。
-     * 否则，根据内置的驱动类型（如 'array'）创建相应的驱动实例。
+     * 否则，根据内置的驱动类型（如 'redis'）创建相应的驱动实例。
      *
      * @param string $name 要创建的驱动的名称。
      * @return CacheDriver 新创建的缓存驱动实例。
-     * @throws InvalidArgumentException 如果指定的驱动名称没有对应的创建器或内置实现。
+     * @throws \InvalidArgumentException 如果指定的驱动名称没有对应的创建器或内置实现。
      */
-    private static function createDriver(string $name): CacheDriver
+    private function createDriver($name)
     {
         // 如果存在自定义创建器，则调用自定义创建器
         if (isset(self::$customCreators[$name])) {
@@ -67,10 +79,8 @@ class CacheManager
                 return new ArrayDriver();
             case 'redis':
                 return new RedisDriver();
-            case 'multi_level':
-                throw new InvalidArgumentException("Multi-level driver must be configured via CacheManager::extend().");
             default:
-                throw new InvalidArgumentException("Driver [{$name}] is not supported.");
+                throw new \InvalidArgumentException("Driver [{$name}] is not supported.");
         }
     }
 
@@ -82,7 +92,7 @@ class CacheManager
      * @param string $name 驱动的唯一名称，例如 'redis_cluster' 或 'memcached'。
      * @param callable $creator 一个匿名函数（闭包），该函数不接受参数，并应返回一个 CacheDriver 实例。
      */
-    public static function extend(string $name, callable $creator)
+    public static function extend($name, callable $creator)
     {
         self::$customCreators[$name] = $creator;
     }
@@ -92,10 +102,13 @@ class CacheManager
      * 在实际应用中，这个方法通常会从应用程序的配置中读取默认的缓存驱动设置，
      * 以便在没有明确指定驱动时提供一个回退选项。
      *
-     * @return string 默认缓存驱动的名称，例如 'array' 或 'redis'。
+     * @return string 默认缓存驱动的名称，例如 'redis'。
      */
-    public static function getDefaultDriver(): string
+    public function getDefaultDriver()
     {
+        if (isset($this->config['default'])) {
+            return $this->config['default'];
+        }
         return 'redis';
     }
 
@@ -104,9 +117,9 @@ class CacheManager
      * 这个方法主要用于测试环境，以确保每次测试运行时都能够获得一个干净的、隔离的 CacheManager 状态，
      * 避免不同测试用例之间的数据互相影响。
      */
-    public static function clearResolvedInstances(): void
+    public static function clearResolvedInstances()
     {
-        self::$drivers = [];
-        self::$customCreators = [];
+        self::$drivers = array();
+        self::$customCreators = array();
     }
 }

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Asfop\CacheKV\Cache;
 
 /**
@@ -17,7 +15,7 @@ interface CacheDriver
      * @param string $key 缓存项的唯一键名。
      * @return mixed|null 键对应的值，如果缓存中不存在或已过期，则返回 null。
      */
-    public function get(string $key);
+    public function get($key);
 
     /**
      * 从缓存中批量获取多个键的值。
@@ -26,7 +24,7 @@ interface CacheDriver
      * @return array 一个关联数组，其中键是缓存项的键名，值是对应的缓存数据。
      *               如果某个键在缓存中不存在或已过期，则该键不会出现在返回的数组中。
      */
-    public function getMultiple(array $keys): array;
+    public function getMultiple(array $keys);
 
     /**
      * 将一个键值对存储到缓存中。
@@ -36,7 +34,7 @@ interface CacheDriver
      * @param int $ttl 缓存有效期（秒）。
      * @return bool 存储操作是否成功。
      */
-    public function set(string $key, $value, int $ttl): bool;
+    public function set($key, $value, $ttl);
 
     /**
      * 批量将多个键值对存储到缓存中。
@@ -46,7 +44,7 @@ interface CacheDriver
      * @param int $ttl 缓存有效期（秒）。
      * @return bool 存储操作是否成功。
      */
-    public function setMultiple(array $values, int $ttl): bool;
+    public function setMultiple(array $values, $ttl);
 
     /**
      * 从缓存中移除指定键的缓存项。
@@ -54,7 +52,7 @@ interface CacheDriver
      * @param string $key 要移除的缓存项的键名。
      * @return bool 移除操作是否成功。
      */
-    public function forget(string $key): bool;
+    public function forget($key);
 
     /**
      * 检查缓存中是否存在指定键的缓存项。
@@ -62,7 +60,7 @@ interface CacheDriver
      * @param string $key 要检查的缓存项的键名。
      * @return bool 如果缓存中存在该键且未过期，则返回 true；否则返回 false。
      */
-    public function has(string $key): bool;
+    public function has($key);
 
     /**
      * 将一个缓存项与一个或多个标签关联。
@@ -72,7 +70,7 @@ interface CacheDriver
      * @param array $tags 包含一个或多个标签名的数组。
      * @return bool 关联操作是否成功。
      */
-    public function tag(string $key, array $tags): bool;
+    public function tag($key, array $tags);
 
     /**
      * 清除指定标签下的所有缓存项。
@@ -81,14 +79,14 @@ interface CacheDriver
      * @param string $tag 要清除的标签名。
      * @return bool 清除操作是否成功。
      */
-    public function clearTag(string $tag): bool;
+    public function clearTag($tag);
 
     /**
      * 获取缓存的统计信息，例如缓存命中次数和未命中次数。
      *
      * @return array 包含 'hits'（缓存命中次数）、'misses'（缓存未命中次数）和 'hit_rate'（缓存命中率）的关联数组。
      */
-    public function getStats(): array;
+    public function getStats();
 
     /**
      * 更新缓存项的过期时间。
@@ -98,5 +96,5 @@ interface CacheDriver
      * @param int $ttl 新的缓存有效期（秒）。
      * @return bool 更新操作是否成功。
      */
-    public function touch(string $key, int $ttl): bool;
+    public function touch($key, $ttl);
 }

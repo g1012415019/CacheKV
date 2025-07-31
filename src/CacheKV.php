@@ -1,9 +1,8 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Asfop\CacheKV;
 
+use Asfop\CacheKV\Cache\CacheDriver;
 use Asfop\CacheKV\Cache\CacheManager;
 use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
