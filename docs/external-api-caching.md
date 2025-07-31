@@ -9,9 +9,9 @@
 - **成本增加**: 部分按调用次数计费的 API 会因频繁调用而增加成本。
 - **数据冗余**: 相同的数据被重复获取，浪费资源。
 
-## 使用 DataCache 后的解决方案
+## 使用 CacheKV 后的解决方案
 
-DataCache 可以轻松地缓存外部 API 的响应，从而减少实际的 API 调用次数，提高应用程序的响应速度，并遵守 API 调用限制。
+CacheKV 可以轻松地缓存外部 API 的响应，从而减少实际的 API 调用次数，提高应用程序的响应速度，并遵守 API 调用限制。
 
 ### 示例代码
 
@@ -20,8 +20,8 @@ DataCache 可以轻松地缓存外部 API 的响应，从而减少实际的 API 
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Asfop\DataCache\Cache\Drivers\ArrayDriver;
-use Asfop\DataCache\DataCache;
+use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
+use Asfop\CacheKV\CacheKV;
 
 // 模拟调用外部天气 API
 function fetchWeatherDataFromApi(string $city): array
@@ -37,9 +37,9 @@ function fetchWeatherDataFromApi(string $city): array
     return $temperatures[$city] ?? ['temp' => 'N/A', 'condition' => 'Unknown'];
 }
 
-// 1. 初始化 DataCache 实例
+// 1. 初始化 CacheKV 实例
 $arrayDriver = new ArrayDriver();
-$cache = new DataCache($arrayDriver, 600); // 默认缓存 10 分钟
+$cache = new CacheKV($arrayDriver, 600); // 默认缓存 10 分钟
 
 // 2. 获取纽约天气数据
 $city = 'New York';

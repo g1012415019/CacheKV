@@ -46,7 +46,7 @@ class CacheKV
      * @param string $key 缓存项的唯一键名。
      * @param callable|null $callback 当缓存未命中时，用于从数据源获取数据的回调函数。
      *                                  该回调函数不接受任何参数，并应返回要缓存的值。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
+     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
      * @return mixed|null 缓存中存储的值，如果键不存在且未提供回调函数，则返回 null。
      */
     public function get($key, $callback = null, $ttl = null)
@@ -55,7 +55,9 @@ class CacheKV
 
         // 如果缓存命中，则执行滑动过期逻辑
         if ($value !== null) {
-            $this->driver->touch($key, $this->defaultTtl);
+            // 使用传入的 TTL 或默认 TTL 来延长过期时间
+            $slidingTtl = $ttl !== null ? $ttl : $this->defaultTtl;
+            $this->driver->touch($key, $slidingTtl);
             return $value;
         }
 
@@ -76,7 +78,7 @@ class CacheKV
      *
      * @param string $key 缓存项的唯一键名。
      * @param mixed $value 要存储的数据。可以是任意可序列化的 PHP 数据类型。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
+     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
      * @return bool 存储操作是否成功。
      */
     public function set($key, $value, $ttl = null)
@@ -91,7 +93,7 @@ class CacheKV
      * @param string $key 缓存项的唯一键名。
      * @param mixed $value 要存储的数据。可以是任意可序列化的 PHP 数据类型。
      * @param string|array $tags 单个标签名（字符串）或标签名数组。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
+     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
      * @return bool 存储操作是否成功。
      */
     public function setWithTag($key, $value, $tags, $ttl = null)
@@ -112,7 +114,7 @@ class CacheKV
      * @param callable $callback 当部分或全部缓存键未命中时，用于从数据源批量获取数据的回调函数。
      *                           回调函数接收一个数组参数，包含所有未命中的键，并应返回一个键值对数组，
      *                           其中键是原始的缓存键，值是对应的数据。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 DataCache 实例的默认 TTL。
+     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
      * @return array 包含所有请求键的键值对数组。如果某个键在缓存和数据源中都不存在，则该键不会出现在返回数组中。
      */
     public function getMultiple($keys, $callback, $ttl = null)

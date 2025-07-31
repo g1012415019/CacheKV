@@ -8,9 +8,9 @@
 - **响应时间**: 从数据库获取数据通常比从缓存获取慢，影响用户体验。
 - **代码冗余**: 每次获取用户信息时，都需要手动编写重复的缓存逻辑（检查缓存、从数据库获取、回填缓存）。
 
-## 使用 DataCache 后的解决方案
+## 使用 CacheKV 后的解决方案
 
-DataCache 封装了“先从缓存读取，若无则从数据源获取并回填缓存”的模式，极大地简化了代码。
+CacheKV 封装了“先从缓存读取，若无则从数据源获取并回填缓存”的模式，极大地简化了代码。
 
 ### 示例代码
 
@@ -19,8 +19,8 @@ DataCache 封装了“先从缓存读取，若无则从数据源获取并回填�
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Asfop\DataCache\Cache\Drivers\ArrayDriver;
-use Asfop\DataCache\DataCache;
+use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
+use Asfop\CacheKV\CacheKV;
 
 // 假设这是你的数据库查询函数
 function fetchUserFromDatabase(int $userId): array
@@ -30,9 +30,9 @@ function fetchUserFromDatabase(int $userId): array
     return ['id' => $userId, 'name' => 'User ' . $userId, 'email' => 'user' . $userId . '@example.com'];
 }
 
-// 1. 初始化 DataCache 实例 (使用内存数组作为缓存后端)
+// 1. 初始化 CacheKV 实例 (使用内存数组作为缓存后端)
 $arrayDriver = new ArrayDriver();
-$cache = new DataCache($arrayDriver, 3600); // 默认缓存有效期 3600 秒
+$cache = new CacheKV($arrayDriver, 3600); // 默认缓存有效期 3600 秒
 
 // 2. 获取用户信息
 $userId = 1;

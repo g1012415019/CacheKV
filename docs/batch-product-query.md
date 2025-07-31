@@ -8,9 +8,9 @@
 - **复杂的回填逻辑**: 手动处理批量查询的缓存命中和未命中逻辑，以及将缺失数据批量回填到缓存中，代码复杂且容易出错。
 - **数据不一致**: 批量操作中，如果部分数据从缓存获取，部分从数据库获取，可能导致数据不一致。
 
-## 使用 DataCache 后的解决方案
+## 使用 CacheKV 后的解决方案
 
-DataCache 提供了 `getMultiple` 方法，能够自动处理批量查询的缓存逻辑，包括批量从缓存获取、批量从数据源回源未命中数据，并批量回填缓存，有效避免 N+1 查询问题。
+CacheKV 提供了 `getMultiple` 方法，能够自动处理批量查询的缓存逻辑，包括批量从缓存获取、批量从数据源回源未命中数据，并批量回填缓存，有效避免 N+1 查询问题。
 
 ### 示例代码
 
@@ -19,8 +19,8 @@ DataCache 提供了 `getMultiple` 方法，能够自动处理批量查询的缓�
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Asfop\DataCache\Cache\Drivers\ArrayDriver;
-use Asfop\DataCache\DataCache;
+use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
+use Asfop\CacheKV\CacheKV;
 
 // 假设这是你的数据库批量查询函数
 function fetchProductsFromDatabase(array $productIds): array
@@ -35,9 +35,9 @@ function fetchProductsFromDatabase(array $productIds): array
     return $products;
 }
 
-// 1. 初始化 DataCache 实例
+// 1. 初始化 CacheKV 实例
 $arrayDriver = new ArrayDriver();
-$cache = new DataCache($arrayDriver, 3600);
+$cache = new CacheKV($arrayDriver, 3600);
 
 // 2. 准备要查询的商品 ID
 $productIds = [101, 102, 103, 104, 105];
@@ -85,7 +85,7 @@ print_r($products);
 ```
 
 ## 优势
-- **避免 N+1 查询**: DataCache 自动处理批量查询，显著减少了数据库往返次数。
+- **避免 N+1 查询**: CacheKV 自动处理批量查询，显著减少了数据库往返次数。
 - **简化代码**: 开发者无需手动管理复杂的缓存命中/未命中逻辑和批量回填。
 - **提高效率**: 批量操作优化减少了数据源的负载，提高了应用程序的响应速度。
 - **统一缓存策略**: 批量操作也遵循统一的缓存过期和管理策略。

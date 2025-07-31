@@ -68,6 +68,9 @@ class DocumentationChecker
         // 检查代码示例是否一致
         $this->checkCodeExampleConsistency();
         
+        // 检查功能描述准确性
+        $this->checkFunctionalityAccuracy();
+        
         echo "\n";
     }
     
@@ -193,6 +196,63 @@ class DocumentationChecker
         
         echo "\n" . str_repeat("=", 50) . "\n";
         echo "检查完成！\n";
+    }
+    
+    private function checkFunctionalityAccuracy()
+    {
+        echo "  🔍 检查功能描述准确性...\n";
+        
+        // 检查是否还有 DataCache 引用
+        $files = glob($this->basePath . '/docs/*.md');
+        $dataCacheFound = false;
+        
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            if (strpos($content, 'DataCache') !== false) {
+                $dataCacheFound = true;
+                $filename = basename($file);
+                echo "    ❌ {$filename} 中仍有 DataCache 引用\n";
+                $this->issues[] = "{$filename} 中仍有 DataCache 引用";
+            }
+        }
+        
+        if (!$dataCacheFound) {
+            echo "    ✅ 所有文档已正确使用 CacheKV 命名\n";
+        }
+        
+        // 检查命名空间是否正确
+        $wrongNamespaceFound = false;
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            if (strpos($content, 'Asfop\\DataCache') !== false) {
+                $wrongNamespaceFound = true;
+                $filename = basename($file);
+                echo "    ❌ {$filename} 中有错误的命名空间引用\n";
+                $this->issues[] = "{$filename} 中有错误的命名空间引用";
+            }
+        }
+        
+        if (!$wrongNamespaceFound) {
+            echo "    ✅ 所有文档使用正确的命名空间\n";
+        }
+        
+        // 检查源代码中的注释是否正确
+        $sourceFiles = glob($this->basePath . '/src/**/*.php');
+        $sourceIssues = false;
+        
+        foreach ($sourceFiles as $file) {
+            $content = file_get_contents($file);
+            if (strpos($content, 'DataCache 实例') !== false) {
+                $sourceIssues = true;
+                $filename = str_replace($this->basePath . '/', '', $file);
+                echo "    ❌ {$filename} 中有错误的类名引用\n";
+                $this->issues[] = "{$filename} 中有错误的类名引用";
+            }
+        }
+        
+        if (!$sourceIssues) {
+            echo "    ✅ 源代码注释使用正确的类名\n";
+        }
     }
 }
 
