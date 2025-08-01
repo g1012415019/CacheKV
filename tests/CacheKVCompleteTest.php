@@ -178,10 +178,10 @@ class CacheKVCompleteTest extends TestCase
     public function testKeyGeneration()
     {
         $key = $this->keyManager->make(CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals('test:phpunit:v1:user_profile:123', $key);
+        $this->assertEquals('test:phpunit:v1:user:123', $key);
         
         $complexKey = $this->keyManager->make(CacheTemplates::ORDER, ['id' => 456, 'status' => 'pending']);
-        $this->assertEquals('test:phpunit:v1:order_detail:456:pending', $complexKey);
+        $this->assertEquals('test:phpunit:v1:order:456:pending', $complexKey);
     }
     
     public function testHelperFunctions()

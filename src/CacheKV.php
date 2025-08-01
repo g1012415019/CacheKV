@@ -180,11 +180,7 @@ class CacheKV
      */
     public function forget($key)
     {
-        if (empty($key)) {
-            return false;
-        }
-        
-        return $this->driver->forget($key);
+        return $this->delete($key);
     }
 
     /**
@@ -314,10 +310,7 @@ class CacheKV
      */
     public function forgetByTemplate($template, $params = [])
     {
-        $this->ensureKeyManagerSet();
-        
-        $key = $this->keyManager->make($template, $params);
-        return $this->forget($key);
+        return $this->deleteByTemplate($template, $params);
     }
     
     /**
@@ -381,6 +374,117 @@ class CacheKV
     public function getDriver()
     {
         return $this->driver;
+    }
+    
+    /**
+     * 删除指定键的缓存项
+     * 
+     * @param string $key 要删除的缓存键
+     * @return bool 删除操作是否成功
+     */
+    public function delete($key)
+    {
+        if (empty($key)) {
+            return false;
+        }
+        
+        return $this->driver->delete($key);
+    }
+    
+    /**
+     * 根据模板删除缓存项
+     * 
+     * @param string $template 模板名称
+     * @param array $params 模板参数
+     * @return bool 删除操作是否成功
+     * @throws \RuntimeException 当 KeyManager 未设置时
+     */
+    public function deleteByTemplate($template, $params = [])
+    {
+        $this->ensureKeyManagerSet();
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->delete($key);
+    }
+    
+    /**
+     * 批量设置缓存项
+     * 
+     * @param array $values 键值对数组
+     * @param int|null $ttl 缓存时间（秒）
+     * @return bool 设置操作是否成功
+     */
+    public function setMultiple($values, $ttl = null)
+    {
+        if (empty($values) || !is_array($values)) {
+            return false;
+        }
+        
+        $effectiveTtl = $ttl !== null ? $ttl : $this->defaultTtl;
+        
+        foreach ($values as $key => $value) {
+            if (!$this->set($key, $value, $effectiveTtl)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 批量删除缓存项
+     * 
+     * @param array $keys 要删除的键数组
+     * @return bool 删除操作是否成功
+     */
+    public function deleteMultiple($keys)
+    {
+        if (empty($keys) || !is_array($keys)) {
+            return false;
+        }
+        
+        foreach ($keys as $key) {
+            if (!$this->delete($key)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 根据模式获取匹配的键
+     * 
+     * @param string $pattern 匹配模式（支持通配符 *）
+     * @return array 匹配的键数组
+     */
+    public function keys($pattern = '*')
+    {
+        if (method_exists($this->driver, 'keys')) {
+            return $this->driver->keys($pattern);
+        }
+        
+        // 如果驱动不支持 keys 方法，返回空数组
+        return [];
+    }
+    
+    /**
+     * 清空所有缓存
+     * 
+     * @return bool 清空操作是否成功
+     */
+    public function flush()
+    {
+        if (method_exists($this->driver, 'flush')) {
+            return $this->driver->flush();
+        }
+        
+        // 如果驱动不支持 flush 方法，尝试通过其他方式清空
+        if (method_exists($this->driver, 'clear')) {
+            return $this->driver->clear();
+        }
+        
+        return false;
     }
     
     /**

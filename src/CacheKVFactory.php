@@ -9,6 +9,7 @@ use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 class CacheKVFactory
 {
     private static $instances = [];
+    private static $keyManager = null;
     private static $defaultConfig = null;
 
     /**
@@ -19,14 +20,17 @@ class CacheKVFactory
         self::$defaultConfig = $config;
         // 清除缓存的实例，强制重新创建
         self::$instances = [];
+        self::$keyManager = null;
     }
 
     /**
-     * 获取默认实例
+     * 获取缓存存储实例
      */
-    public static function create($name = 'default')
+    public static function store($name = null)
     {
-        if (!isset(self::$instances[$name])) {
+        $storeName = $name ?: (self::$defaultConfig['default'] ?? 'default');
+        
+        if (!isset(self::$instances[$storeName])) {
             if (self::$defaultConfig === null) {
                 throw new \RuntimeException('请先调用 setDefaultConfig() 设置默认配置');
             }
@@ -34,23 +38,50 @@ class CacheKVFactory
             $config = self::$defaultConfig;
             
             // 创建 KeyManager
-            $keyManager = new KeyManager([
-                'app_prefix' => $config['key_manager']['app_prefix'] ?? '',
-                'env_prefix' => $config['key_manager']['env_prefix'] ?? '',
-                'version' => $config['key_manager']['version'] ?? 'v1',
-                'templates' => $config['key_manager']['templates'] ?? []
-            ]);
+            $keyManager = self::getKeyManager();
 
             // 创建驱动
-            $storeConfig = $config['stores'][$config['default']] ?? $config['stores']['array'];
+            $storeConfig = $config['stores'][$storeName] ?? $config['stores'][$config['default']] ?? $config['stores']['array'];
             $driver = $storeConfig['driver'];
             $ttl = $storeConfig['ttl'] ?? 3600;
 
             // 创建 CacheKV 实例
-            self::$instances[$name] = new CacheKV($driver, $ttl, $keyManager);
+            self::$instances[$storeName] = new CacheKV($driver, $ttl, $keyManager);
         }
 
-        return self::$instances[$name];
+        return self::$instances[$storeName];
+    }
+
+    /**
+     * 获取键管理器实例
+     */
+    public static function getKeyManager()
+    {
+        if (self::$keyManager === null) {
+            if (self::$defaultConfig === null) {
+                throw new \RuntimeException('请先调用 setDefaultConfig() 设置默认配置');
+            }
+
+            $config = self::$defaultConfig;
+            
+            self::$keyManager = new KeyManager([
+                'app_prefix' => $config['key_manager']['app_prefix'] ?? '',
+                'env_prefix' => $config['key_manager']['env_prefix'] ?? '',
+                'version' => $config['key_manager']['version'] ?? 'v1',
+                'separator' => $config['key_manager']['separator'] ?? ':',
+                'templates' => $config['key_manager']['templates'] ?? []
+            ]);
+        }
+
+        return self::$keyManager;
+    }
+
+    /**
+     * 获取默认实例（向后兼容）
+     */
+    public static function create($name = 'default')
+    {
+        return self::store($name);
     }
 
     /**
@@ -78,6 +109,7 @@ class CacheKVFactory
     public static function clearInstances()
     {
         self::$instances = [];
+        self::$keyManager = null;
     }
 
     /**
@@ -87,5 +119,6 @@ class CacheKVFactory
     {
         self::$defaultConfig = null;
         self::$instances = [];
+        self::$keyManager = null;
     }
 }

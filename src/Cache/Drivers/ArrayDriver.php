@@ -182,6 +182,17 @@ class ArrayDriver implements CacheDriver
     }
 
     /**
+     * 删除指定键的缓存项（别名方法）
+     *
+     * @param string $key 要删除的缓存项的键名
+     * @return bool 删除操作是否成功
+     */
+    public function delete($key)
+    {
+        return $this->forget($key);
+    }
+
+    /**
      * 检查缓存中是否存在指定键的缓存项
      *
      * @param string $key 缓存项的唯一键名
@@ -388,5 +399,35 @@ class ArrayDriver implements CacheDriver
         $this->misses = 0;
         
         return true;
+    }
+    
+    /**
+     * 根据模式获取匹配的键
+     * 
+     * @param string $pattern 匹配模式（支持通配符 *）
+     * @return array 匹配的键数组
+     */
+    public function keys($pattern = '*')
+    {
+        // 先清理过期的键
+        $this->cleanup();
+        
+        if ($pattern === '*') {
+            return array_keys($this->cache);
+        }
+        
+        // 将通配符模式转换为正则表达式
+        // 先转义特殊字符，然后将 * 和 ? 转换为正则表达式
+        $escapedPattern = preg_quote($pattern, '/');
+        $regex = '/^' . str_replace(['\*', '\?'], ['.*', '.'], $escapedPattern) . '$/';
+        
+        $matchingKeys = [];
+        foreach (array_keys($this->cache) as $key) {
+            if (preg_match($regex, $key)) {
+                $matchingKeys[] = $key;
+            }
+        }
+        
+        return $matchingKeys;
     }
 }

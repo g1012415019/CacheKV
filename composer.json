@@ -1,6 +1,6 @@
 {
     "name": "asfop/cache-kv",
-    "description": "CacheKV - 专注于简化缓存操作的 PHP 库，核心功能是实现"若无则从数据源获取并回填缓存"这一常见模式",
+    "description": "CacheKV - 专注于简化缓存操作的 PHP 库，核心功能是实现若无则从数据源获取并回填缓存这一常见模式",
     "type": "library",
     "license": "MIT",
     "keywords": [
