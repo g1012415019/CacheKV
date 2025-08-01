@@ -18,7 +18,7 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实�
 **CacheKV 让这一切变得简单：**
 ```php
 // 一行代码搞定：检查缓存 → 未命中则获取数据 → 自动回填缓存
-$user = cache_kv_get($cache, 'user', ['id' => 123], function() {
+$user = cache_kv_get('user', ['id' => 123], function() {
     return getUserFromDatabase(123); // 只在缓存未命中时执行
 });
 ```
@@ -31,39 +31,42 @@ $user = cache_kv_get($cache, 'user', ['id' => 123], function() {
 composer require asfop/cache-kv
 ```
 
-### 5分钟上手
+### 30秒上手
 
 ```php
 <?php
 require_once 'vendor/autoload.php';
 
-use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\CacheKVBuilder;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-
-// 方式1: 快速创建（开发测试推荐）
-$cache = CacheKVFactory::quick('myapp', 'dev', [
-    'user' => 'user:{id}',
-    'product' => 'product:{id}',
-]);
-
-// 方式2: 构建器方式（生产环境推荐）
-$cache = CacheKVBuilder::create()
-    ->useArrayDriver()
-    ->appPrefix('myapp')
-    ->envPrefix('prod')
-    ->version('v1')
-    ->template('user', 'user:{id}')
-    ->template('product', 'product:{id}')
-    ->ttl(3600)
-    ->build();
-
-// 使用缓存 - 自动回填
-$user = cache_kv_get($cache, 'user', ['id' => 123], function() {
+// 零配置，直接使用
+$user = cache_kv_get('user', ['id' => 123], function() {
     return ['id' => 123, 'name' => 'John Doe', 'email' => 'john@example.com'];
 });
 
 echo "用户信息: " . json_encode($user);
+```
+
+### 推荐配置（一行搞定）
+
+```php
+// 一次配置，全局使用
+cache_kv_config([
+    'app_prefix' => 'myapp',
+    'env_prefix' => 'prod',
+    'templates' => [
+        'user' => 'user:{id}',
+        'product' => 'product:{id}',
+        'order' => 'order:{id}',
+    ]
+]);
+
+// 然后在任何地方直接使用
+$user = cache_kv_get('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+
+$product = cache_kv_get('product', ['id' => 456], function() {
+    return getProductFromDatabase(456);
+});
 ```
 
 ## 🚀 核心功能
@@ -73,7 +76,7 @@ echo "用户信息: " . json_encode($user);
 ```php
 // 缓存存在：直接返回缓存数据
 // 缓存不存在：执行回调函数获取数据，自动写入缓存后返回
-$product = cache_kv_get($cache, 'product', ['id' => 1], function() {
+$product = cache_kv_get('product', ['id' => 1], function() {
     return getProductFromDatabase(1);
 });
 ```
@@ -81,6 +84,7 @@ $product = cache_kv_get($cache, 'product', ['id' => 1], function() {
 ### 2. 批量操作优化
 
 ```php
+$cache = cache_kv_instance();
 $userIds = [1, 2, 3, 4, 5];
 $userKeys = array_map(function($id) use ($cache) {
     return $cache->makeKey('user', ['id' => $id]);
@@ -95,16 +99,20 @@ $users = $cache->getMultiple($userKeys, function($missingKeys) {
 ### 3. 标签管理
 
 ```php
+$cache = cache_kv_instance();
+
 // 设置带标签的缓存
 $cache->setWithTag('user:1', $userData, ['users', 'vip_users']);
 
 // 批量清除：一次清除所有用户相关缓存
-$cache->clearTag('users');
+cache_kv_clear_tag('users');
 ```
 
 ### 4. 统一键管理
 
 ```php
+$cache = cache_kv_instance();
+
 // 标准化的键生成：myapp:prod:v1:user:123
 $userKey = $cache->makeKey('user', ['id' => 123]);
 
@@ -114,233 +122,159 @@ $userKey = $cache->makeKey('user', ['id' => 123]);
 
 ## 🔧 配置方式
 
-CacheKV 提供多种灵活的配置方式，适应不同的使用场景：
-
-### 1. 直接创建（生产环境推荐）
+### 方式1：零配置使用（最简单）
 
 ```php
-use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use Asfop\CacheKV\Cache\KeyManager;
+// 无需任何配置，直接使用
+$user = cache_kv_get('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+```
 
-$driver = new ArrayDriver();
-$keyManager = new KeyManager([
+### 方式2：全局配置（推荐）
+
+```php
+// 一次配置，全局使用
+cache_kv_config([
     'app_prefix' => 'myapp',
     'env_prefix' => 'prod',
     'version' => 'v1',
+    'ttl' => 3600,
     'templates' => [
         'user' => 'user:{id}',
         'product' => 'product:{id}',
+        'order' => 'order:{user_id}:{id}',
     ]
 ]);
 
-$cache = CacheKVFactory::create($driver, 3600, $keyManager);
+// 然后在任何地方直接使用
+$user = cache_kv_get('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
 ```
 
-### 2. 配置数组方式（配置驱动）
+### 方式3：独立实例（多实例场景）
 
 ```php
-$config = [
-    'driver' => new ArrayDriver(),
-    'ttl' => 3600,
-    'key_manager' => [
-        'app_prefix' => 'myapp',
-        'env_prefix' => 'prod',
-        'version' => 'v1',
-        'templates' => [
-            'user' => 'user:{id}',
-            'product' => 'product:{id}',
-        ]
-    ]
-];
+use Asfop\CacheKV\CacheKVFactory;
 
-$cache = CacheKVFactory::createFromConfig($config);
-```
+// 用户服务缓存
+$userCache = CacheKVFactory::quick([
+    'profile' => 'profile:{id}',
+    'settings' => 'settings:{id}',
+], [
+    'app_prefix' => 'user-service',
+    'ttl' => 1800
+]);
 
-### 3. 构建器方式（流畅API）
-
-```php
-use Asfop\CacheKV\CacheKVBuilder;
-
-$cache = CacheKVBuilder::create()
-    ->useArrayDriver()
-    ->ttl(3600)
-    ->appPrefix('myapp')
-    ->envPrefix('prod')
-    ->version('v1')
-    ->template('user', 'user:{id}')
-    ->template('product', 'product:{id}')
-    ->build();
-```
-
-### 4. 快速创建（开发测试）
-
-```php
-$cache = CacheKVFactory::quick('myapp', 'dev', [
-    'user' => 'user:{id}',
-    'product' => 'product:{id}',
-], 3600);
+// 订单服务缓存
+$orderCache = CacheKVFactory::quick([
+    'order' => 'order:{id}',
+    'items' => 'items:{order_id}',
+], [
+    'app_prefix' => 'order-service',
+    'ttl' => 3600
+]);
 ```
 
 ## 🔧 驱动支持
 
 ### Redis 驱动（生产环境推荐）
 
-#### 使用 Predis
 ```bash
 composer require predis/predis
 ```
 
 ```php
-use Asfop\CacheKV\CacheKVBuilder;
-
-$redis = new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379]);
-
-$cache = CacheKVBuilder::create()
-    ->useRedisDriver($redis)
-    ->appPrefix('myapp')
-    ->envPrefix('prod')
-    ->template('user', 'user:{id}')
-    ->ttl(3600)
-    ->build();
-```
-
-#### 使用 PhpRedis 扩展
-```php
-$redis = new \Redis();
-$redis->connect('127.0.0.1', 6379);
-
-$cache = CacheKVBuilder::create()
-    ->useRedisDriver($redis)
-    ->appPrefix('myapp')
-    ->template('user', 'user:{id}')
-    ->build();
-```
-
-### Array 驱动（开发测试）
-```php
-$cache = CacheKVBuilder::create()
-    ->useArrayDriver()
-    ->appPrefix('myapp')
-    ->template('user', 'user:{id}')
-    ->build();
-```
-
-## 🎨 最佳实践
-
-### 推荐的项目结构
-
-```php
-// src/Cache/CacheTemplates.php
-class CacheTemplates {
-    const USER = 'user';
-    const PRODUCT = 'product';
-    const ORDER = 'order';
-}
-
-// src/Cache/CacheHelper.php
-class CacheHelper {
-    private $cache;
-    
-    public function __construct($cache) {
-        $this->cache = $cache;
-    }
-    
-    public function getUser($userId) {
-        return cache_kv_get($this->cache, CacheTemplates::USER, ['id' => $userId], function() use ($userId) {
-            return getUserFromDatabase($userId);
-        });
-    }
-    
-    public function clearUserCache($userId) {
-        cache_kv_delete($this->cache, CacheTemplates::USER, ['id' => $userId]);
-    }
-}
-```
-
-### 框架集成示例
-
-```php
-// Laravel 服务提供者
-class CacheKVServiceProvider extends ServiceProvider {
-    public function register() {
-        $this->app->singleton('cache.kv', function($app) {
-            $config = $app['config']['cache.kv'];
-            return CacheKVFactory::createFromConfig($config);
-        });
-    }
-}
-
-// 配置文件 config/cache.php
-return [
-    'kv' => [
-        'driver' => new ArrayDriver(), // 或 RedisDriver
-        'ttl' => 3600,
-        'key_manager' => [
-            'app_prefix' => env('APP_NAME', 'laravel'),
-            'env_prefix' => env('APP_ENV', 'production'),
-            'version' => 'v1',
-            'templates' => [
-                'user' => 'user:{id}',
-                'product' => 'product:{id}',
-            ]
-        ]
+cache_kv_config([
+    'driver' => new \Asfop\CacheKV\Cache\Drivers\RedisDriver(
+        new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379])
+    ),
+    'app_prefix' => 'myapp',
+    'templates' => [
+        'user' => 'user:{id}',
+        'product' => 'product:{id}',
     ]
-];
+]);
 ```
 
-## 🌟 实际应用场景
+### Array 驱动（开发测试，默认）
+
+```php
+// 默认使用 Array 驱动，无需额外配置
+$user = cache_kv_get('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+```
+
+## 🎨 实际应用场景
 
 ### 用户信息缓存
 ```php
-$userService = new UserService($cache);
+function getUserInfo($userId) {
+    return cache_kv_get('user', ['id' => $userId], function() use ($userId) {
+        return getUserFromDatabase($userId);
+    });
+}
 
-// 获取用户信息，自动处理缓存逻辑
-$user = $userService->getUser(123);
-
-// 更新用户后清除相关缓存
-$userService->updateUser(123, $data);
-$userService->clearUserCache(123);
-```
-
-### 商品信息批量缓存
-```php
-// 批量获取商品，自动优化：部分从缓存，部分从数据库
-$productIds = [1, 2, 3, 4, 5];
-$productKeys = array_map(function($id) use ($cache) {
-    return $cache->makeKey('product', ['id' => $id]);
-}, $productIds);
-
-$products = $cache->getMultiple($productKeys, function($missingKeys) {
-    return getProductsFromDatabase($missingKeys);
-});
+// 使用
+$user = getUserInfo(123);
 ```
 
 ### API 响应缓存
 ```php
-// 缓存外部 API 响应，避免频繁调用
-$weather = cache_kv_get($cache, 'api_weather', ['city' => $city], function() use ($city) {
-    return callWeatherAPI($city);
-}, 1800); // 30分钟缓存
+function getWeather($city) {
+    return cache_kv_get('weather', ['city' => $city], function() use ($city) {
+        return callWeatherAPI($city);
+    }, 1800); // 30分钟缓存
+}
+
+// 使用
+$weather = getWeather('Beijing');
 ```
 
-## 🔄 多环境支持
+### 计算结果缓存
+```php
+function getExpensiveCalculation($params) {
+    $key = md5(json_encode($params));
+    return cache_kv_get('calculation', ['key' => $key], function() use ($params) {
+        // 复杂计算
+        return performExpensiveCalculation($params);
+    }, 3600); // 1小时缓存
+}
+```
+
+## 🔄 框架集成
+
+### Laravel 集成
 
 ```php
-// 开发环境
-$devCache = CacheKVFactory::quick('myapp', 'dev', $templates, 600);
+// 在 AppServiceProvider 的 boot 方法中
+public function boot()
+{
+    cache_kv_config([
+        'driver' => new \Asfop\CacheKV\Cache\Drivers\RedisDriver(
+            app('redis')->connection()
+        ),
+        'app_prefix' => env('APP_NAME', 'laravel'),
+        'env_prefix' => env('APP_ENV', 'production'),
+        'templates' => config('cache.templates', [])
+    ]);
+}
+```
 
-// 测试环境
-$testCache = CacheKVFactory::quick('myapp', 'test', $templates, 300);
+### 其他框架
 
-// 生产环境
-$prodCache = CacheKVBuilder::create()
-    ->useRedisDriver($redis)
-    ->appPrefix('myapp')
-    ->envPrefix('prod')
-    ->templates($templates)
-    ->ttl(3600)
-    ->build();
+```php
+// 在应用启动时配置
+cache_kv_config([
+    'app_prefix' => 'myapp',
+    'env_prefix' => getenv('APP_ENV') ?: 'production',
+    'templates' => [
+        'user' => 'user:{id}',
+        'product' => 'product:{id}',
+    ]
+]);
 ```
 
 ## 📊 性能提升
@@ -352,38 +286,27 @@ $prodCache = CacheKVBuilder::create()
 | 相关缓存清理 | 手动逐个清除 | 标签批量清除 | **维护性大幅提升** |
 | 键名管理 | 字符串硬编码 | 常量统一管理 | **可维护性大幅提升** |
 
-## 📚 文档
-
-- [快速开始](docs/quick-start.md) - 5分钟上手指南
-- [核心功能](docs/core-features.md) - 详细功能介绍
-- [API 参考](docs/api-reference.md) - 完整的 API 文档
-- [实战案例](docs/examples.md) - 真实业务场景应用
-- [最佳实践](docs/best-practices.md) - 生产环境使用建议
-
 ## 📈 核心优势
 
-### ✅ 开发效率
-- **一行代码**：复杂的缓存逻辑变成一行代码
-- **自动化**：缓存命中、未命中、回填全自动处理
-- **标准化**：统一的键命名和管理规范
-- **常量管理**：IDE 支持，避免拼写错误
+### ✅ 极简使用
+- **零配置**：直接使用，无需任何配置
+- **一行配置**：全局配置，一次设置处处使用
+- **无重复代码**：辅助函数封装，避免重复
 
-### ✅ 性能提升
+### ✅ 自动化
+- **自动回填**：缓存未命中自动从数据源获取
 - **智能批量**：自动优化批量操作，避免 N+1 查询
-- **防穿透**：自动缓存空值，防止缓存穿透攻击
-- **命中率高**：科学的缓存策略，显著提升命中率
+- **防穿透**：自动缓存空值，防止缓存穿透
 
 ### ✅ 维护性
-- **标签管理**：相关缓存批量管理，维护简单
+- **标签管理**：相关缓存批量管理
 - **环境隔离**：开发、测试、生产环境自动隔离
 - **版本管理**：支持数据结构升级和版本迁移
-- **灵活配置**：多种配置方式，适应不同场景
 
-### ✅ 易用性
-- **多种配置方式**：从快速创建到完全自定义
-- **依赖注入友好**：完美支持现代PHP框架
-- **零学习成本**：符合直觉的API设计
-- **完整文档**：详细的文档和示例
+### ✅ 灵活性
+- **多种配置方式**：从零配置到完全自定义
+- **多实例支持**：支持微服务架构
+- **框架友好**：完美集成各种 PHP 框架
 
 ## 🏆 适用场景
 

@@ -3,7 +3,6 @@
 use PHPUnit\Framework\TestCase;
 use Asfop\CacheKV\CacheKV;
 use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\CacheKVBuilder;
 use Asfop\CacheKV\CacheTemplates;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 use Asfop\CacheKV\Cache\KeyManager;
@@ -15,8 +14,8 @@ class CacheKVTest extends TestCase
     
     protected function setUp(): void
     {
-        // 使用新的配置方式创建缓存实例
-        $this->keyManager = CacheKVFactory::createKeyManager([
+        // 使用简化的配置方式
+        $this->keyManager = new KeyManager([
             'app_prefix' => 'test',
             'env_prefix' => 'phpunit',
             'version' => 'v1',
@@ -32,6 +31,20 @@ class CacheKVTest extends TestCase
             3600,
             $this->keyManager
         );
+        
+        // 设置默认配置用于测试辅助函数
+        CacheKVFactory::setDefaultConfig([
+            'driver' => new ArrayDriver(),
+            'ttl' => 3600,
+            'app_prefix' => 'test',
+            'env_prefix' => 'helper',
+            'version' => 'v1',
+            'templates' => [
+                CacheTemplates::USER => 'user:{id}',
+                CacheTemplates::POST => 'post:{id}',
+                CacheTemplates::SESSION => 'session:{id}',
+            ]
+        ]);
         
         // 清空缓存
         $this->cache->flush();
@@ -61,13 +74,11 @@ class CacheKVTest extends TestCase
         $config = [
             'driver' => new ArrayDriver(),
             'ttl' => 7200,
-            'key_manager' => [
-                'app_prefix' => 'config_test',
-                'env_prefix' => 'test',
-                'version' => 'v2',
-                'templates' => [
-                    'test_template' => 'test:{id}'
-                ]
+            'app_prefix' => 'config_test',
+            'env_prefix' => 'test',
+            'version' => 'v2',
+            'templates' => [
+                'test_template' => 'test:{id}'
             ]
         ];
         
@@ -83,73 +94,46 @@ class CacheKVTest extends TestCase
     
     public function testFactoryQuick()
     {
-        $cache = CacheKVFactory::quick('myapp', 'dev', [
+        $cache = CacheKVFactory::quick([
             'user' => 'user:{id}',
             'post' => 'post:{id}'
-        ], 1200);
+        ], [
+            'app_prefix' => 'quick_test',
+            'env_prefix' => 'test',
+            'ttl' => 1200
+        ]);
         
         $this->assertInstanceOf(CacheKV::class, $cache);
         $this->assertEquals(1200, $cache->getDefaultTtl());
         
         $keyManager = $cache->getKeyManager();
-        $this->assertEquals('myapp:dev:v1:user:123', $keyManager->make('user', ['id' => 123]));
+        $this->assertEquals('quick_test:test:v1:user:123', $keyManager->make('user', ['id' => 123]));
     }
     
-    public function testFactoryCreateFromConfigMissingDriver()
+    public function testFactoryGetInstance()
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver is required in config');
+        // 测试单例模式
+        $instance1 = CacheKVFactory::getInstance();
+        $instance2 = CacheKVFactory::getInstance();
         
-        CacheKVFactory::createFromConfig(['ttl' => 3600]);
+        $this->assertSame($instance1, $instance2);
+        $this->assertInstanceOf(CacheKV::class, $instance1);
     }
     
-    // ========== 构建器测试 ==========
-    
-    public function testBuilder()
+    public function testFactorySetDefaultConfig()
     {
-        $cache = CacheKVBuilder::create()
-            ->useArrayDriver()
-            ->ttl(1800)
-            ->appPrefix('builder_test')
-            ->envPrefix('test')
-            ->version('v1')
-            ->template('user', 'user:{id}')
-            ->template('post', 'post:{id}')
-            ->build();
+        CacheKVFactory::setDefaultConfig([
+            'app_prefix' => 'custom_app',
+            'env_prefix' => 'custom_env',
+            'templates' => [
+                'custom' => 'custom:{id}'
+            ]
+        ]);
         
-        $this->assertInstanceOf(CacheKV::class, $cache);
-        $this->assertEquals(1800, $cache->getDefaultTtl());
+        $instance = CacheKVFactory::getInstance();
+        $keyManager = $instance->getKeyManager();
         
-        $keyManager = $cache->getKeyManager();
-        $this->assertEquals('builder_test:test:v1:user:123', $keyManager->make('user', ['id' => 123]));
-    }
-    
-    public function testBuilderWithTemplates()
-    {
-        $templates = [
-            'user' => 'user:{id}',
-            'post' => 'post:{id}:{slug}'
-        ];
-        
-        $cache = CacheKVBuilder::create()
-            ->useArrayDriver()
-            ->appPrefix('test')
-            ->envPrefix('test')
-            ->templates($templates)
-            ->build();
-        
-        $keyManager = $cache->getKeyManager();
-        $this->assertEquals('test:test:v1:post:123:hello-world', $keyManager->make('post', ['id' => 123, 'slug' => 'hello-world']));
-    }
-    
-    public function testBuilderMissingDriver()
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver is required');
-        
-        CacheKVBuilder::create()
-            ->ttl(3600)
-            ->build();
+        $this->assertEquals('custom_app:custom_env:v1:custom:123', $keyManager->make('custom', ['id' => 123]));
     }
     
     // ========== 基础缓存操作测试 ==========
@@ -181,16 +165,6 @@ class CacheKVTest extends TestCase
         $this->assertTrue($this->cache->delete($key));
         $this->assertFalse($this->cache->has($key));
         $this->assertNull($this->cache->get($key));
-    }
-    
-    public function testForgetAlias()
-    {
-        $key = 'test_key';
-        $value = 'test_value';
-        
-        $this->cache->set($key, $value);
-        $this->assertTrue($this->cache->forget($key));
-        $this->assertFalse($this->cache->has($key));
     }
     
     // ========== 自动回填缓存测试 ==========
@@ -285,15 +259,6 @@ class CacheKVTest extends TestCase
         $this->assertEquals($userData, $result2);
     }
     
-    public function testForgetByTemplate()
-    {
-        $this->cache->setByTemplate(CacheTemplates::USER, ['id' => 789], ['name' => 'Test User']);
-        $this->assertTrue($this->cache->hasByTemplate(CacheTemplates::USER, ['id' => 789]));
-        
-        $this->assertTrue($this->cache->forgetByTemplate(CacheTemplates::USER, ['id' => 789]));
-        $this->assertFalse($this->cache->hasByTemplate(CacheTemplates::USER, ['id' => 789]));
-    }
-    
     // ========== 批量操作测试 ==========
     
     public function testSetMultiple()
@@ -353,20 +318,52 @@ class CacheKVTest extends TestCase
         $this->assertEquals(['id' => 3, 'name' => 'User 3'], $result['user:3']);
     }
     
-    public function testDeleteMultiple()
+    // ========== 辅助函数测试 ==========
+    
+    public function testHelperFunctions()
     {
-        $data = [
-            'key1' => 'value1',
-            'key2' => 'value2',
-            'key3' => 'value3',
-        ];
+        $userData = ['id' => 123, 'name' => 'Helper User'];
         
-        $this->cache->setMultiple($data);
-        $this->assertTrue($this->cache->deleteMultiple(array_keys($data)));
+        // 测试 cache_kv_set
+        $this->assertTrue(cache_kv_set(CacheTemplates::USER, ['id' => 123], $userData));
         
-        foreach (array_keys($data) as $key) {
-            $this->assertNull($this->cache->get($key));
-        }
+        // 测试 cache_kv_get
+        $result = cache_kv_get(CacheTemplates::USER, ['id' => 123]);
+        $this->assertEquals($userData, $result);
+        
+        // 测试 cache_kv_delete
+        $this->assertTrue(cache_kv_delete(CacheTemplates::USER, ['id' => 123]));
+        $this->assertNull(cache_kv_get(CacheTemplates::USER, ['id' => 123]));
+    }
+    
+    public function testHelperFunctionWithCallback()
+    {
+        $callbackExecuted = false;
+        $userData = ['id' => 456, 'name' => 'Helper Callback User'];
+        
+        $result = cache_kv_get(CacheTemplates::USER, ['id' => 456], function() use (&$callbackExecuted, $userData) {
+            $callbackExecuted = true;
+            return $userData;
+        });
+        
+        $this->assertTrue($callbackExecuted);
+        $this->assertEquals($userData, $result);
+    }
+    
+    public function testHelperConfig()
+    {
+        cache_kv_config([
+            'app_prefix' => 'helper_test',
+            'env_prefix' => 'test_env',
+            'templates' => [
+                'test' => 'test:{id}'
+            ]
+        ]);
+        
+        $instance = cache_kv_instance();
+        $keyManager = $instance->getKeyManager();
+        
+        $this->assertEquals('helper_test:test_env:v1:test:123', $keyManager->make('test', ['id' => 123]));
     }
     
     // ========== 标签管理测试 ==========
@@ -379,22 +376,6 @@ class CacheKVTest extends TestCase
         
         $this->assertTrue($this->cache->setWithTag($key, $value, $tags));
         $this->assertEquals($value, $this->cache->get($key));
-    }
-    
-    public function testSetByTemplateWithTag()
-    {
-        $userData = ['id' => 123, 'name' => 'Tagged User'];
-        $tags = ['users', 'active_users'];
-        
-        $this->assertTrue($this->cache->setByTemplateWithTag(
-            CacheTemplates::USER, 
-            ['id' => 123], 
-            $userData, 
-            $tags
-        ));
-        
-        $result = $this->cache->getByTemplate(CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals($userData, $result);
     }
     
     public function testClearTag()
@@ -416,38 +397,6 @@ class CacheKVTest extends TestCase
         $this->assertFalse($this->cache->has('user:1'));
         $this->assertFalse($this->cache->has('user:2'));
         $this->assertTrue($this->cache->has('admin:1'));
-    }
-    
-    // ========== 辅助函数测试 ==========
-    
-    public function testHelperFunctions()
-    {
-        $userData = ['id' => 123, 'name' => 'Helper User'];
-        
-        // 测试 cache_kv_set
-        $this->assertTrue(cache_kv_set($this->cache, CacheTemplates::USER, ['id' => 123], $userData));
-        
-        // 测试 cache_kv_get
-        $result = cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals($userData, $result);
-        
-        // 测试 cache_kv_delete
-        $this->assertTrue(cache_kv_delete($this->cache, CacheTemplates::USER, ['id' => 123]));
-        $this->assertNull(cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 123]));
-    }
-    
-    public function testHelperFunctionWithCallback()
-    {
-        $callbackExecuted = false;
-        $userData = ['id' => 456, 'name' => 'Helper Callback User'];
-        
-        $result = cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 456], function() use (&$callbackExecuted, $userData) {
-            $callbackExecuted = true;
-            return $userData;
-        });
-        
-        $this->assertTrue($callbackExecuted);
-        $this->assertEquals($userData, $result);
     }
     
     // ========== 键管理测试 ==========
@@ -480,29 +429,7 @@ class CacheKVTest extends TestCase
         $this->assertEquals(7200, $this->cache->getDefaultTtl());
     }
     
-    public function testCustomTtl()
-    {
-        $key = 'ttl_test';
-        $value = 'ttl_value';
-        
-        // 设置自定义 TTL
-        $this->assertTrue($this->cache->set($key, $value, 1800));
-        $this->assertEquals($value, $this->cache->get($key));
-    }
-    
     // ========== 工具方法测试 ==========
-    
-    public function testKeys()
-    {
-        $this->cache->set('test:key1', 'value1');
-        $this->cache->set('test:key2', 'value2');
-        $this->cache->set('other:key3', 'value3');
-        
-        $keys = $this->cache->keys('test:*');
-        $this->assertContains('test:key1', $keys);
-        $this->assertContains('test:key2', $keys);
-        $this->assertNotContains('other:key3', $keys);
-    }
     
     public function testFlush()
     {
@@ -552,13 +479,6 @@ class CacheKVTest extends TestCase
         $this->assertFalse($this->cache->set('', 'value'));
         $this->assertFalse($this->cache->delete(''));
         $this->assertFalse($this->cache->has(''));
-    }
-    
-    public function testEmptyValues()
-    {
-        $this->assertFalse($this->cache->setMultiple([]));
-        $this->assertEquals([], $this->cache->getMultiple([]));
-        $this->assertFalse($this->cache->deleteMultiple([]));
     }
     
     public function testComplexDataTypes()

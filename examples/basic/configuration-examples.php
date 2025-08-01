@@ -2,304 +2,165 @@
 /**
  * CacheKV 配置方式示例
  * 
- * 展示 CacheKV 的各种配置方式和最佳实践
+ * 展示简洁的配置方式
  */
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\CacheKVBuilder;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use Asfop\CacheKV\Cache\KeyManager;
 
 echo "=== CacheKV 配置方式示例 ===\n\n";
 
-// 定义缓存模板
-class MyCacheTemplates {
-    const USER = 'user';
-    const PRODUCT = 'product';
-    const ORDER = 'order';
-}
+echo "方式1: 零配置使用（最简单）\n";
+echo str_repeat("-", 40) . "\n";
 
-echo "1. 直接创建方式（推荐 - 生产环境）\n";
-echo str_repeat("-", 50) . "\n";
+// 无需任何配置，直接使用
+$user = cache_kv_get('user', ['id' => 1], function() {
+    return ['id' => 1, 'name' => 'Zero Config User'];
+});
 
-// 这种方式最灵活，支持依赖注入，适合生产环境
-$driver = new ArrayDriver();
-$keyManager = new KeyManager([
+echo "✓ 零配置使用成功\n";
+echo "用户: {$user['name']}\n\n";
+
+echo "方式2: 全局配置（推荐）\n";
+echo str_repeat("-", 40) . "\n";
+
+// 一次配置，全局使用
+cache_kv_config([
     'app_prefix' => 'myapp',
     'env_prefix' => 'prod',
     'version' => 'v1',
+    'ttl' => 3600,
     'templates' => [
-        MyCacheTemplates::USER => 'user:{id}',
-        MyCacheTemplates::PRODUCT => 'product:{id}',
-        MyCacheTemplates::ORDER => 'order:{id}',
+        'user' => 'user:{id}',
+        'product' => 'product:{id}',
+        'order' => 'order:{user_id}:{id}',
+        'weather' => 'weather:{city}',
+        'calculation' => 'calculation:{key}',
     ]
 ]);
 
-$cache1 = CacheKVFactory::create($driver, 3600, $keyManager);
+$product = cache_kv_get('product', ['id' => 1], function() {
+    return ['id' => 1, 'name' => 'Configured Product'];
+});
 
-echo "✓ 使用 CacheKVFactory::create() 创建\n";
-echo "  - 最大灵活性\n";
-echo "  - 支持依赖注入\n";
-echo "  - 适合生产环境\n";
-echo "  - 可以精确控制每个组件\n\n";
+echo "✓ 全局配置使用成功\n";
+echo "商品: {$product['name']}\n\n";
 
-echo "2. 配置数组方式（推荐 - 配置驱动）\n";
-echo str_repeat("-", 50) . "\n";
-
-// 适合从配置文件加载配置
-$config = [
-    'driver' => new ArrayDriver(),
-    'ttl' => 3600,
-    'key_manager' => [
-        'app_prefix' => 'myapp',
-        'env_prefix' => 'prod',
-        'version' => 'v1',
-        'templates' => [
-            MyCacheTemplates::USER => 'user:{id}',
-            MyCacheTemplates::PRODUCT => 'product:{id}',
-            MyCacheTemplates::ORDER => 'order:{id}',
-        ]
-    ]
-];
-
-$cache2 = CacheKVFactory::createFromConfig($config);
-
-echo "✓ 使用 CacheKVFactory::createFromConfig() 创建\n";
-echo "  - 配置集中管理\n";
-echo "  - 易于从文件加载\n";
-echo "  - 结构清晰\n";
-echo "  - 适合配置驱动的应用\n\n";
-
-echo "3. 构建器方式（推荐 - 代码可读性）\n";
-echo str_repeat("-", 50) . "\n";
-
-// 流畅的API，代码可读性好
-$cache3 = CacheKVBuilder::create()
-    ->useArrayDriver()
-    ->ttl(3600)
-    ->appPrefix('myapp')
-    ->envPrefix('prod')
-    ->version('v1')
-    ->template(MyCacheTemplates::USER, 'user:{id}')
-    ->template(MyCacheTemplates::PRODUCT, 'product:{id}')
-    ->template(MyCacheTemplates::ORDER, 'order:{id}')
-    ->build();
-
-echo "✓ 使用 CacheKVBuilder 流畅API创建\n";
-echo "  - 流畅的API\n";
-echo "  - 代码可读性好\n";
-echo "  - 链式调用\n";
-echo "  - 适合复杂配置\n\n";
-
-echo "4. 快速创建方式（开发测试）\n";
-echo str_repeat("-", 50) . "\n";
-
-// 快速创建，适合开发测试
-$cache4 = CacheKVFactory::quick('myapp', 'dev', [
-    MyCacheTemplates::USER => 'user:{id}',
-    MyCacheTemplates::PRODUCT => 'product:{id}',
-    MyCacheTemplates::ORDER => 'order:{id}',
-], 1800);
-
-echo "✓ 使用 CacheKVFactory::quick() 快速创建\n";
-echo "  - 快速简单\n";
-echo "  - 适合开发测试\n";
-echo "  - 默认使用 ArrayDriver\n";
-echo "  - 一行代码搞定\n\n";
-
-echo "=== 实际应用场景 ===\n\n";
-
-echo "场景1: Laravel/Symfony 等框架集成\n";
+echo "方式3: 快速创建独立实例\n";
 echo str_repeat("-", 40) . "\n";
 
-// 在服务容器中注册
-class CacheServiceProvider {
-    public function register($container) {
-        $container->singleton('cache.kv', function($app) {
-            $config = $app['config']['cache.kv'];
-            return CacheKVFactory::createFromConfig($config);
-        });
+// 需要多个实例时使用
+$userCache = CacheKVFactory::quick([
+    'profile' => 'profile:{id}',
+    'settings' => 'settings:{id}',
+], [
+    'app_prefix' => 'user-service',
+    'ttl' => 1800
+]);
+
+$orderCache = CacheKVFactory::quick([
+    'order' => 'order:{id}',
+    'items' => 'items:{order_id}',
+], [
+    'app_prefix' => 'order-service',
+    'ttl' => 3600
+]);
+
+$profile = $userCache->getByTemplate('profile', ['id' => 1], function() {
+    return ['id' => 1, 'name' => 'Service User'];
+});
+
+$order = $orderCache->getByTemplate('order', ['id' => 1], function() {
+    return ['id' => 1, 'total' => 99.99];
+});
+
+echo "✓ 多实例创建成功\n";
+echo "用户服务缓存键: " . $userCache->makeKey('profile', ['id' => 1]) . "\n";
+echo "订单服务缓存键: " . $orderCache->makeKey('order', ['id' => 1]) . "\n\n";
+
+echo "方式4: 框架集成\n";
+echo str_repeat("-", 40) . "\n";
+
+// Laravel 等框架中的使用
+class AppServiceProvider {
+    public function boot() {
+        // 在应用启动时配置
+        cache_kv_config([
+            'app_prefix' => env('APP_NAME', 'laravel'),
+            'env_prefix' => env('APP_ENV', 'production'),
+            'templates' => config('cache.templates', [])
+        ]);
     }
 }
 
-echo "// 在服务提供者中注册\n";
-echo "public function register(\$container) {\n";
-echo "    \$container->singleton('cache.kv', function(\$app) {\n";
-echo "        \$config = \$app['config']['cache.kv'];\n";
-echo "        return CacheKVFactory::createFromConfig(\$config);\n";
-echo "    });\n";
-echo "}\n\n";
+echo "✓ 框架集成示例\n";
+echo "// 在 AppServiceProvider 中配置\n";
+echo "// 然后在任何地方直接使用 cache_kv_get()\n\n";
 
-echo "场景2: 多环境配置\n";
-echo str_repeat("-", 40) . "\n";
+echo "=== 实际使用场景 ===\n\n";
 
-// 不同环境使用不同配置
-function createCacheForEnvironment($env) {
-    $configs = [
-        'development' => [
-            'driver' => new ArrayDriver(),
-            'ttl' => 600, // 10分钟
-            'key_manager' => [
-                'app_prefix' => 'myapp',
-                'env_prefix' => 'dev',
-                'version' => 'v1',
-            ]
-        ],
-        'testing' => [
-            'driver' => new ArrayDriver(),
-            'ttl' => 300, // 5分钟
-            'key_manager' => [
-                'app_prefix' => 'myapp',
-                'env_prefix' => 'test',
-                'version' => 'v1',
-            ]
-        ],
-        'production' => [
-            'driver' => new ArrayDriver(), // 实际应该是 RedisDriver
-            'ttl' => 3600, // 1小时
-            'key_manager' => [
-                'app_prefix' => 'myapp',
-                'env_prefix' => 'prod',
-                'version' => 'v1',
-            ]
-        ]
-    ];
-    
-    return CacheKVFactory::createFromConfig($configs[$env]);
+echo "场景1: 用户信息缓存\n";
+echo str_repeat("-", 30) . "\n";
+
+function getUserInfo($userId) {
+    return cache_kv_get('user', ['id' => $userId], function() use ($userId) {
+        // 模拟数据库查询
+        return [
+            'id' => $userId,
+            'name' => "User {$userId}",
+            'email' => "user{$userId}@example.com"
+        ];
+    });
 }
 
-$devCache = createCacheForEnvironment('development');
-$testCache = createCacheForEnvironment('testing');
-$prodCache = createCacheForEnvironment('production');
+$user = getUserInfo(123);
+echo "用户信息: {$user['name']} ({$user['email']})\n\n";
 
-echo "✓ 创建了开发、测试、生产三个环境的缓存实例\n";
-echo "  - 开发环境: 10分钟TTL\n";
-echo "  - 测试环境: 5分钟TTL\n";
-echo "  - 生产环境: 1小时TTL\n\n";
+echo "场景2: API 响应缓存\n";
+echo str_repeat("-", 30) . "\n";
 
-echo "场景3: 微服务架构\n";
-echo str_repeat("-", 40) . "\n";
-
-// 不同服务使用不同的缓存实例
-class UserServiceCache {
-    public static function create() {
-        return CacheKVBuilder::create()
-            ->useArrayDriver()
-            ->appPrefix('user-service')
-            ->envPrefix('prod')
-            ->version('v1')
-            ->template('profile', 'profile:{id}')
-            ->template('permissions', 'permissions:{user_id}')
-            ->ttl(3600)
-            ->build();
-    }
+function getWeather($city) {
+    return cache_kv_get('weather', ['city' => $city], function() use ($city) {
+        // 模拟 API 调用
+        return [
+            'city' => $city,
+            'temperature' => rand(15, 35),
+            'condition' => 'sunny'
+        ];
+    }, 1800); // 30分钟缓存
 }
 
-class OrderServiceCache {
-    public static function create() {
-        return CacheKVBuilder::create()
-            ->useArrayDriver()
-            ->appPrefix('order-service')
-            ->envPrefix('prod')
-            ->version('v1')
-            ->template('order', 'order:{id}')
-            ->template('order_items', 'order_items:{order_id}')
-            ->ttl(1800)
-            ->build();
-    }
+$weather = getWeather('Beijing');
+echo "天气信息: {$weather['city']} {$weather['temperature']}°C {$weather['condition']}\n\n";
+
+echo "场景3: 计算结果缓存\n";
+echo str_repeat("-", 30) . "\n";
+
+function getExpensiveCalculation($params) {
+    $key = md5(json_encode($params));
+    return cache_kv_get('calculation', ['key' => $key], function() use ($params) {
+        // 模拟复杂计算
+        sleep(1); // 假设需要1秒计算时间
+        return array_sum($params) * 1.5;
+    }, 3600); // 1小时缓存
 }
 
-$userServiceCache = UserServiceCache::create();
-$orderServiceCache = OrderServiceCache::create();
+$result = getExpensiveCalculation([1, 2, 3, 4, 5]);
+echo "计算结果: {$result}\n\n";
 
-echo "✓ 创建了用户服务和订单服务的缓存实例\n";
-echo "  - 用户服务: user-service 前缀\n";
-echo "  - 订单服务: order-service 前缀\n";
-echo "  - 完全隔离的缓存空间\n\n";
+echo "=== 配置对比总结 ===\n\n";
 
-echo "场景4: 配置文件驱动\n";
-echo str_repeat("-", 40) . "\n";
+echo "使用建议:\n";
+echo "1. 简单项目: 零配置直接使用\n";
+echo "2. 正式项目: 使用 cache_kv_config() 全局配置\n";
+echo "3. 微服务: 使用 CacheKVFactory::quick() 创建独立实例\n";
+echo "4. 框架集成: 在服务提供者中配置\n\n";
 
-// 模拟从配置文件加载
-$configFile = [
-    'cache' => [
-        'default' => [
-            'driver' => 'array',
-            'ttl' => 3600,
-            'key_manager' => [
-                'app_prefix' => 'myapp',
-                'env_prefix' => 'prod',
-                'version' => 'v1',
-                'templates' => [
-                    'user' => 'user:{id}',
-                    'product' => 'product:{id}',
-                ]
-            ]
-        ],
-        'session' => [
-            'driver' => 'array',
-            'ttl' => 1800,
-            'key_manager' => [
-                'app_prefix' => 'session',
-                'env_prefix' => 'prod',
-                'version' => 'v1',
-                'templates' => [
-                    'user_session' => 'session:{user_id}',
-                ]
-            ]
-        ]
-    ]
-];
-
-function createCacheFromConfig($configFile, $name) {
-    $config = $configFile['cache'][$name];
-    $config['driver'] = new ArrayDriver(); // 实际应该根据配置创建驱动
-    return CacheKVFactory::createFromConfig($config);
-}
-
-$defaultCache = createCacheFromConfig($configFile, 'default');
-$sessionCache = createCacheFromConfig($configFile, 'session');
-
-echo "✓ 从配置文件创建了默认缓存和会话缓存\n";
-echo "  - 配置集中管理\n";
-echo "  - 易于维护\n";
-echo "  - 支持多个缓存实例\n\n";
-
-echo "=== 最佳实践建议 ===\n\n";
-
-echo "1. 生产环境推荐:\n";
-echo "   - 使用 CacheKVFactory::create() 或 createFromConfig()\n";
-echo "   - 通过依赖注入容器管理实例\n";
-echo "   - 配置文件集中管理\n\n";
-
-echo "2. 开发测试推荐:\n";
-echo "   - 使用 CacheKVFactory::quick() 快速创建\n";
-echo "   - 使用 CacheKVBuilder 提高代码可读性\n\n";
-
-echo "3. 框架集成推荐:\n";
-echo "   - 创建服务提供者\n";
-echo "   - 注册到服务容器\n";
-echo "   - 支持配置文件\n\n";
-
-echo "4. 微服务架构推荐:\n";
-echo "   - 每个服务独立的缓存实例\n";
-echo "   - 使用不同的前缀隔离\n";
-echo "   - 根据业务特点设置不同的TTL\n\n";
-
-echo "=== 功能验证 ===\n\n";
-
-// 验证所有实例都正常工作
-$testData = ['id' => 123, 'name' => 'Test User'];
-
-$cache1->setByTemplate(MyCacheTemplates::USER, ['id' => 123], $testData);
-$cache2->setByTemplate(MyCacheTemplates::USER, ['id' => 123], $testData);
-$cache3->setByTemplate(MyCacheTemplates::USER, ['id' => 123], $testData);
-$cache4->setByTemplate(MyCacheTemplates::USER, ['id' => 123], $testData);
-
-echo "✓ 所有配置方式创建的实例都正常工作\n";
-echo "✓ 缓存键生成正确\n";
-echo "✓ 数据存储和读取正常\n\n";
+echo "优势:\n";
+echo "✓ 零学习成本 - 直接使用\n";
+echo "✓ 一行配置 - 全局生效\n";
+echo "✓ 无重复代码 - 辅助函数封装\n";
+echo "✓ 灵活扩展 - 支持多实例\n\n";
 
 echo "=== 示例完成 ===\n";
