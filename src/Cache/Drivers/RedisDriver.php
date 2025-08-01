@@ -8,26 +8,61 @@ use Asfop\CacheKV\Cache\CacheDriver;
  * RedisDriver 是一个基于 Redis 数据库实现的缓存驱动。
  * 它实现了 CacheDriver 接口，利用 Redis 的高性能特性进行键值对缓存操作。
  * 缓存的数据结构是键值对（key-value），其中 key 是字符串，value 是可序列化的 PHP 数据类型。
+ * 
+ * 注意：此驱动不依赖特定的 Redis 客户端库，Redis 实例通过构造函数注入。
+ * 支持任何实现了基本 Redis 命令的客户端（如 Predis、PhpRedis 等）。
  */
 class RedisDriver implements CacheDriver
 {
-    protected static $redisFactory;
+    /**
+     * @var mixed Redis 客户端实例
+     */
     protected $redis;
+    
+    /**
+     * @var int 缓存命中次数
+     */
     protected $hits = 0;
+    
+    /**
+     * @var int 缓存未命中次数
+     */
     protected $misses = 0;
 
-    public function __construct()
+    /**
+     * 构造函数
+     * 
+     * @param mixed $redis Redis 客户端实例，需要支持基本的 Redis 命令
+     * @throws \InvalidArgumentException 当 Redis 实例为空时抛出异常
+     */
+    public function __construct($redis = null)
     {
-        if (static::$redisFactory) {
-            $this->redis = call_user_func(static::$redisFactory);
-        } else {
-            throw new \Exception('Redis factory not configured.');
+        if ($redis === null) {
+            throw new \InvalidArgumentException('Redis instance is required for RedisDriver');
         }
+        
+        $this->redis = $redis;
+        
+        // 验证 Redis 实例是否支持必要的方法
+        $this->validateRedisInstance();
     }
 
-    public static function setRedisFactory(callable $factory)
+    /**
+     * 验证 Redis 实例是否支持必要的方法
+     * 
+     * @throws \InvalidArgumentException 当 Redis 实例不支持必要方法时抛出异常
+     */
+    private function validateRedisInstance()
     {
-        static::$redisFactory = $factory;
+        $requiredMethods = ['get', 'set', 'setex', 'del', 'exists', 'mget', 'expire'];
+        
+        foreach ($requiredMethods as $method) {
+            if (!method_exists($this->redis, $method) && !is_callable([$this->redis, $method])) {
+                throw new \InvalidArgumentException(
+                    "Redis instance must support the '{$method}' method"
+                );
+            }
+        }
     }
 
     /**
@@ -42,7 +77,7 @@ class RedisDriver implements CacheDriver
     {
         $value = $this->redis->get($key);
 
-        if ($value === false) {
+        if ($value === false || $value === null) {
             $this->misses++;
             return null;
         }
@@ -62,11 +97,15 @@ class RedisDriver implements CacheDriver
      */
     public function getMultiple(array $keys)
     {
+        if (empty($keys)) {
+            return [];
+        }
+
         $values = $this->redis->mget($keys);
 
         $results = [];
         foreach ($keys as $index => $key) {
-            if ($values[$index] !== false) {
+            if (isset($values[$index]) && $values[$index] !== false && $values[$index] !== null) {
                 $results[$key] = unserialize($values[$index]);
                 $this->hits++;
             } else {
@@ -87,7 +126,12 @@ class RedisDriver implements CacheDriver
      */
     public function set($key, $value, $ttl)
     {
-        return $this->redis->setex($key, $ttl, serialize($value));
+        try {
+            $serializedValue = serialize($value);
+            return $this->redis->setex($key, $ttl, $serializedValue);
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -102,22 +146,40 @@ class RedisDriver implements CacheDriver
      */
     public function setMultiple(array $values, $ttl)
     {
-        $pipeline = $this->redis->pipeline();
-
-        foreach ($values as $key => $value) {
-            $pipeline->setex($key, $ttl, serialize($value));
+        if (empty($values)) {
+            return true;
         }
 
-        $results = $pipeline->exec();
+        try {
+            // 检查是否支持 pipeline
+            if (method_exists($this->redis, 'pipeline')) {
+                $pipeline = $this->redis->pipeline();
 
-        // Check if all operations were successful
-        foreach ($results as $result) {
-            if ($result === false) {
-                return false;
+                foreach ($values as $key => $value) {
+                    $pipeline->setex($key, $ttl, serialize($value));
+                }
+
+                $results = $pipeline->exec();
+
+                // 检查所有操作是否成功
+                foreach ($results as $result) {
+                    if ($result === false) {
+                        return false;
+                    }
+                }
+            } else {
+                // 不支持 pipeline 时，逐个设置
+                foreach ($values as $key => $value) {
+                    if (!$this->set($key, $value, $ttl)) {
+                        return false;
+                    }
+                }
             }
-        }
 
-        return true;
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -129,19 +191,27 @@ class RedisDriver implements CacheDriver
      */
     public function forget($key)
     {
-        // 移除键本身
-        $deleted = $this->redis->del($key) > 0;
+        try {
+            // 移除键本身
+            $deleted = $this->redis->del($key) > 0;
 
-        // 移除与该键关联的标签引用
-        $tagKeys = $this->redis->smembers('tags:' . $key);
-        if (!empty($tagKeys)) {
-            foreach ($tagKeys as $tag) {
-                $this->redis->srem('tag_keys:' . $tag, $key);
+            // 移除与该键关联的标签引用
+            if (method_exists($this->redis, 'smembers')) {
+                $tagKeys = $this->redis->smembers('tags:' . $key);
+                if (!empty($tagKeys)) {
+                    foreach ($tagKeys as $tag) {
+                        if (method_exists($this->redis, 'srem')) {
+                            $this->redis->srem('tag_keys:' . $tag, $key);
+                        }
+                    }
+                    $this->redis->del('tags:' . $key); // 清除键上的标签列表
+                }
             }
-            $this->redis->del('tags:' . $key); // 清除键上的标签列表
-        }
 
-        return $deleted;
+            return $deleted;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -153,7 +223,11 @@ class RedisDriver implements CacheDriver
      */
     public function has($key)
     {
-        return $this->redis->exists($key) === 1;
+        try {
+            return $this->redis->exists($key) > 0;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -167,16 +241,44 @@ class RedisDriver implements CacheDriver
      */
     public function tag($key, array $tags)
     {
-        $pipeline = $this->redis->pipeline();
-
-        foreach ($tags as $tag) {
-            $formattedTagKey = 'tag_keys:' . $tag;
-            $pipeline->sadd($formattedTagKey, $key);
-            // 记录键所属的标签，方便forget时清理
-            $pipeline->sadd('tags:' . $key, $tag);
+        if (empty($tags)) {
+            return true;
         }
-        $pipeline->exec();
-        return true;
+
+        try {
+            // 检查是否支持 Set 操作
+            if (!method_exists($this->redis, 'sadd')) {
+                // 如果不支持 Set 操作，使用简单的键值对存储
+                foreach ($tags as $tag) {
+                    $this->redis->set('tag_keys:' . $tag . ':' . $key, '1');
+                    $this->redis->set('tags:' . $key . ':' . $tag, '1');
+                }
+                return true;
+            }
+
+            // 使用 pipeline 提高性能
+            if (method_exists($this->redis, 'pipeline')) {
+                $pipeline = $this->redis->pipeline();
+
+                foreach ($tags as $tag) {
+                    $formattedTagKey = 'tag_keys:' . $tag;
+                    $pipeline->sadd($formattedTagKey, $key);
+                    // 记录键所属的标签，方便forget时清理
+                    $pipeline->sadd('tags:' . $key, $tag);
+                }
+                $pipeline->exec();
+            } else {
+                foreach ($tags as $tag) {
+                    $formattedTagKey = 'tag_keys:' . $tag;
+                    $this->redis->sadd($formattedTagKey, $key);
+                    $this->redis->sadd('tags:' . $key, $tag);
+                }
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -189,23 +291,60 @@ class RedisDriver implements CacheDriver
      */
     public function clearTag($tag)
     {
-        $formattedTagKey = 'tag_keys:' . $tag;
-        $keysToClear = $this->redis->smembers($formattedTagKey);
+        try {
+            $formattedTagKey = 'tag_keys:' . $tag;
+            
+            // 检查是否支持 Set 操作
+            if (method_exists($this->redis, 'smembers')) {
+                $keysToClear = $this->redis->smembers($formattedTagKey);
+            } else {
+                // 如果不支持 Set 操作，使用模式匹配
+                if (method_exists($this->redis, 'keys')) {
+                    $tagKeyPattern = 'tag_keys:' . $tag . ':*';
+                    $tagKeys = $this->redis->keys($tagKeyPattern);
+                    $keysToClear = [];
+                    foreach ($tagKeys as $tagKey) {
+                        $keysToClear[] = str_replace('tag_keys:' . $tag . ':', '', $tagKey);
+                    }
+                } else {
+                    return false;
+                }
+            }
 
-        if (empty($keysToClear)) {
+            if (empty($keysToClear)) {
+                return false;
+            }
+
+            // 使用 pipeline 提高性能
+            if (method_exists($this->redis, 'pipeline')) {
+                $pipeline = $this->redis->pipeline();
+                foreach ($keysToClear as $key) {
+                    $pipeline->del($key); // 删除实际的缓存项
+                    // 移除键上的标签引用
+                    if (method_exists($this->redis, 'srem')) {
+                        $pipeline->srem('tags:' . $key, $tag);
+                    } else {
+                        $pipeline->del('tags:' . $key . ':' . $tag);
+                    }
+                }
+                $pipeline->del($formattedTagKey); // 删除标签本身存储的键列表
+                $pipeline->exec();
+            } else {
+                foreach ($keysToClear as $key) {
+                    $this->redis->del($key);
+                    if (method_exists($this->redis, 'srem')) {
+                        $this->redis->srem('tags:' . $key, $tag);
+                    } else {
+                        $this->redis->del('tags:' . $key . ':' . $tag);
+                    }
+                }
+                $this->redis->del($formattedTagKey);
+            }
+
+            return true;
+        } catch (\Exception $e) {
             return false;
         }
-
-        $pipeline = $this->redis->pipeline();
-        foreach ($keysToClear as $key) {
-            $pipeline->del($key); // 删除实际的缓存项
-            // 移除键上的标签引用
-            $pipeline->srem('tags:' . $key, $tag);
-        }
-        $pipeline->del($formattedTagKey); // 删除标签本身存储的键列表
-        $pipeline->exec();
-
-        return true;
     }
 
     /**
@@ -238,6 +377,20 @@ class RedisDriver implements CacheDriver
      */
     public function touch($key, $ttl)
     {
-        return $this->redis->expire($key, $ttl);
+        try {
+            return $this->redis->expire($key, $ttl);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * 获取 Redis 实例
+     * 
+     * @return mixed Redis 客户端实例
+     */
+    public function getRedis()
+    {
+        return $this->redis;
     }
 }

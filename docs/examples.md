@@ -37,11 +37,8 @@ class UserService
         ]);
         
         // 配置 Redis 驱动
-        RedisDriver::setRedisFactory(function() {
-            return new \Predis\Client(['host' => 'redis.example.com']);
-        });
-        
-        $this->cache = new CacheKV(new RedisDriver(), 3600, $this->keyManager);
+        $redis = new \Predis\Client(['host' => 'redis.example.com']);
+        $this->cache = new CacheKV(new RedisDriver($redis), 3600, $this->keyManager);
     }
     
     /**
@@ -163,7 +160,8 @@ class ProductService
             ]
         ]);
         
-        $this->cache = new CacheKV(new RedisDriver(), 3600, $this->keyManager);
+        $redis = new \Predis\Client(['host' => 'redis.example.com']);
+        $this->cache = new CacheKV(new RedisDriver($redis), 3600, $this->keyManager);
     }
     
     /**
@@ -298,7 +296,8 @@ class ApiCacheService
             ]
         ]);
         
-        $this->cache = new CacheKV(new RedisDriver(), 3600, $this->keyManager);
+        $redis = new \Predis\Client(['host' => 'redis.example.com']);
+        $this->cache = new CacheKV(new RedisDriver($redis), 3600, $this->keyManager);
     }
     
     /**
@@ -414,7 +413,8 @@ class ContentService
             ]
         ]);
         
-        $this->cache = new CacheKV(new RedisDriver(), 3600, $this->keyManager);
+        $redis = new \Predis\Client(['host' => 'redis.example.com']);
+        $this->cache = new CacheKV(new RedisDriver($redis), 3600, $this->keyManager);
     }
     
     /**

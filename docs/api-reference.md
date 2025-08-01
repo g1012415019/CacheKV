@@ -346,20 +346,34 @@ $driver = new ArrayDriver();
 
 ### RedisDriver
 
-Redis 驱动，适用于生产环境。
+Redis 驱动，适用于生产环境。不依赖特定的 Redis 客户端库。
 
+#### 使用 Predis
 ```php
-// 配置 Redis 连接
-RedisDriver::setRedisFactory(function() {
-    return new \Predis\Client([
-        'host' => '127.0.0.1',
-        'port' => 6379,
-        'database' => 0,
-    ]);
-});
+// 安装 Predis: composer require predis/predis
+$redis = new \Predis\Client([
+    'host' => '127.0.0.1',
+    'port' => 6379,
+    'database' => 0,
+]);
 
-$driver = new RedisDriver();
+$driver = new RedisDriver($redis);
 ```
+
+#### 使用 PhpRedis 扩展
+```php
+$redis = new \Redis();
+$redis->connect('127.0.0.1', 6379);
+$redis->select(0);
+
+$driver = new RedisDriver($redis);
+```
+
+**特点：**
+- 数据持久化
+- 支持分布式
+- 高性能
+- 支持任何 Redis 客户端
 
 ## 使用示例
 

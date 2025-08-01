@@ -115,14 +115,36 @@ $userKey = $keyManager->make('user', ['id' => 123]);
 ## 🔧 驱动支持
 
 ### Redis 驱动（生产环境推荐）
+
+CacheKV 不依赖特定的 Redis 客户端库，您可以使用任何 Redis 客户端：
+
+#### 使用 Predis
+```bash
+composer require predis/predis
+```
+
 ```php
 use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
-RedisDriver::setRedisFactory(function() {
-    return new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379]);
-});
+// 创建 Predis 客户端
+$redis = new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379]);
 
-$cache = new CacheKV(new RedisDriver(), 3600, $keyManager);
+// 注入到 RedisDriver
+$driver = new RedisDriver($redis);
+$cache = new CacheKV($driver, 3600, $keyManager);
+```
+
+#### 使用 PhpRedis 扩展
+```php
+use Asfop\CacheKV\Cache\Drivers\RedisDriver;
+
+// 创建 PhpRedis 客户端
+$redis = new \Redis();
+$redis->connect('127.0.0.1', 6379);
+
+// 注入到 RedisDriver
+$driver = new RedisDriver($redis);
+$cache = new CacheKV($driver, 3600, $keyManager);
 ```
 
 ### Array 驱动（开发测试）
@@ -137,12 +159,18 @@ $cache = new CacheKV(new ArrayDriver(), 3600, $keyManager);
 ```php
 use Asfop\CacheKV\CacheKVServiceProvider;
 use Asfop\CacheKV\CacheKVFacade;
+use Asfop\CacheKV\Cache\Drivers\RedisDriver;
+
+// 创建 Redis 实例
+$redis = new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379]);
 
 // 注册服务
 CacheKVServiceProvider::register([
     'default' => 'redis',
     'stores' => [
-        'redis' => ['driver' => RedisDriver::class]
+        'redis' => [
+            'driver' => new RedisDriver($redis)
+        ]
     ],
     'key_manager' => [
         'app_prefix' => 'myapp',

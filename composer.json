@@ -15,8 +15,11 @@
         }
     ],
     "require": {
-        "php": "^7.0 || ^8.0",
-        "predis/predis": "^3.0"
+        "php": "^7.0 || ^8.0"
+    },
+    "suggest": {
+        "predis/predis": "For Redis support using Predis client",
+        "ext-redis": "For Redis support using PhpRedis extension"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

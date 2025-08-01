@@ -4,15 +4,10 @@ namespace Asfop\CacheKV;
 
 use Asfop\CacheKV\Cache\CacheDriver;
 use Asfop\CacheKV\Cache\CacheManager;
-use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 use Asfop\CacheKV\Cache\KeyManager;
 
 class CacheKV
 {
-    public static function setRedisFactory(callable $factory)
-    {
-        RedisDriver::setRedisFactory($factory);
-    }
 
     /**
      * @var CacheDriver 缓存驱动实例。

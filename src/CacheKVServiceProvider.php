@@ -38,13 +38,20 @@ class CacheKVServiceProvider
         }
 
         // 初始化驱动
-        $driverClass = $storeConfig['driver'];
+        $driverConfig = $storeConfig['driver'];
         
-        if (!class_exists($driverClass)) {
-            throw new \Exception("Cache driver class '{$driverClass}' not found");
+        if (is_object($driverConfig)) {
+            // 如果直接传入驱动实例
+            $driver = $driverConfig;
+        } elseif (is_string($driverConfig)) {
+            // 如果传入驱动类名
+            if (!class_exists($driverConfig)) {
+                throw new \Exception("Cache driver class '{$driverConfig}' not found");
+            }
+            $driver = new $driverConfig();
+        } else {
+            throw new \Exception("Invalid driver configuration for store '{$storeName}'");
         }
-
-        $driver = new $driverClass();
         
         // 获取默认 TTL
         $ttl = isset($finalConfig['default_ttl']) ? $finalConfig['default_ttl'] : 3600;
