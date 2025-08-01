@@ -251,47 +251,126 @@ $weather = cache_kv_get('api_weather', ['city' => $city], function() use ($city)
 }, 1800); // 30分钟缓存
 ```
 
+### 模板名称管理优化
+```php
+// 问题：硬编码模板名称 'user' 难以维护和修改
+
+// 1. 常量定义方式（推荐）
+class CacheTemplates {
+    const USER = 'user_profile';
+    const PRODUCT = 'product_info';
+    const ORDER = 'order_detail';
+}
+
+// 使用常量，便于统一管理和修改
+$user = $cache->getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+
+// 2. 配置文件方式
+// config/cache_templates.php
+return [
+    'user' => 'user_profile',
+    'product' => 'product_info',
+    'order' => 'order_detail',
+];
+
+// 使用配置
+$templates = require 'config/cache_templates.php';
+$user = $cache->getByTemplate($templates['user'], ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+
+// 3. 枚举类方式（PHP 8.1+）
+enum CacheTemplate: string {
+    case USER = 'user_profile';
+    case PRODUCT = 'product_info';
+    case ORDER = 'order_detail';
+}
+
+$user = $cache->getByTemplate(CacheTemplate::USER->value, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+
+// 4. 辅助函数封装
+function getUserCache($userId, $callback) {
+    return cache_kv_get(CacheTemplates::USER, ['id' => $userId], $callback);
+}
+
+function getProductCache($productId, $callback) {
+    return cache_kv_get(CacheTemplates::PRODUCT, ['id' => $productId], $callback);
+}
+
+// 使用封装函数
+$user = getUserCache(123, function() {
+    return getUserFromDatabase(123);
+});
+```
+
 ### 缓存 Key 重命名迁移
 ```php
-// 场景：需要将 'user:{id}' 改为 'user_info:{id}'
+// 场景：需要将模板名从 'user' 改为 'user_profile'
 
 // 1. 版本管理方式（推荐）
 CacheKVFactory::setDefaultConfig([
     'key_manager' => [
         'version' => 'v2', // 升级版本号，自动隔离新旧缓存
         'templates' => [
-            'user' => 'user_info:{id}', // 新的模板
+            'user_profile' => 'user:{id}', // 新的模板名
         ]
     ]
 ]);
 
-// 2. 平滑迁移方式
-function migrateUserCache($userId) {
-    $oldKey = "myapp:prod:v1:user:{$userId}";
-    $newKey = "myapp:prod:v2:user_info:{$userId}";
-    
-    // 检查旧缓存是否存在
-    if ($cache->has($oldKey)) {
-        $data = $cache->get($oldKey);
-        $cache->set($newKey, $data); // 迁移到新 key
-        $cache->delete($oldKey);     // 删除旧 key
-    }
+// 更新常量定义
+class CacheTemplates {
+    const USER = 'user_profile'; // 从 'user' 改为 'user_profile'
 }
 
-// 3. 批量迁移脚本
-function batchMigrateCache() {
-    $oldPattern = "myapp:prod:v1:user:*";
+// 2. 平滑迁移方式
+function migrateTemplateNames() {
+    $oldTemplate = 'user';
+    $newTemplate = 'user_profile';
+    
+    // 获取所有旧模板的缓存
+    $oldPattern = "myapp:prod:v1:{$oldTemplate}:*";
     $oldKeys = $cache->keys($oldPattern);
     
     foreach ($oldKeys as $oldKey) {
         $userId = extractUserIdFromKey($oldKey);
-        $newKey = $keyManager->make('user', ['id' => $userId]);
+        
+        // 使用新模板名生成新 key
+        $newKey = $keyManager->make($newTemplate, ['id' => $userId]);
         
         $data = $cache->get($oldKey);
         $cache->set($newKey, $data);
         $cache->delete($oldKey);
     }
 }
+
+// 3. 兼容性处理（过渡期使用）
+function getWithFallback($newTemplate, $oldTemplate, $params, $callback) {
+    // 先尝试新模板
+    $data = $cache->getByTemplate($newTemplate, $params, null);
+    if ($data !== null) {
+        return $data;
+    }
+    
+    // 回退到旧模板
+    $data = $cache->getByTemplate($oldTemplate, $params, $callback);
+    if ($data !== null) {
+        // 同时写入新模板缓存
+        $cache->setByTemplate($newTemplate, $params, $data);
+        // 删除旧模板缓存
+        $cache->deleteByTemplate($oldTemplate, $params);
+    }
+    
+    return $data;
+}
+
+// 使用兼容性处理
+$user = getWithFallback('user_profile', 'user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
 ```
 
 ## 📈 核心优势
