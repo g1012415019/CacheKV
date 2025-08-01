@@ -54,7 +54,9 @@
         "test": "phpunit",
         "test-coverage": "phpunit --coverage-html coverage",
         "benchmark": "php examples/advanced/benchmark.php",
-        "example": "php examples/basic/example_constants.php",
+        "example": "php examples/basic/getting-started.php",
+        "example-real": "php examples/basic/real-world-usage.php",
+        "example-advanced": "php examples/advanced/advanced-features.php",
         "cs-check": "phpcs --standard=PSR12 src/",
         "cs-fix": "phpcbf --standard=PSR12 src/"
     },

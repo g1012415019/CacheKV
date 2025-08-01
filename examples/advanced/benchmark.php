@@ -1,15 +1,21 @@
 <?php
-require_once 'vendor/autoload.php';
+/**
+ * CacheKV 性能基准测试
+ * 
+ * 测试 CacheKV 在不同场景下的性能表现
+ */
+
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 use Asfop\CacheKV\CacheKVFactory;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
 // 缓存模板定义
-class CacheTemplates {
-    const USER = 'user_profile';
-    const PRODUCT = 'product_info';
-    const ORDER = 'order_detail';
+class BenchmarkTemplates {
+    const USER = 'user';
+    const PRODUCT = 'product';
+    const SESSION = 'session';
 }
 
 class CacheBenchmark {
@@ -63,9 +69,9 @@ class CacheBenchmark {
                 'env_prefix' => 'test',
                 'version' => 'v1',
                 'templates' => [
-                    CacheTemplates::USER => 'user:{id}',
-                    CacheTemplates::PRODUCT => 'product:{id}',
-                    CacheTemplates::ORDER => 'order:{id}',
+                    BenchmarkTemplates::USER => 'user:{id}',
+                    BenchmarkTemplates::PRODUCT => 'product:{id}',
+                    BenchmarkTemplates::SESSION => 'session:{id}',
                 ]
             ]
         ]);
@@ -88,9 +94,9 @@ class CacheBenchmark {
                 'env_prefix' => 'test',
                 'version' => 'v1',
                 'templates' => [
-                    CacheTemplates::USER => 'user:{id}',
-                    CacheTemplates::PRODUCT => 'product:{id}',
-                    CacheTemplates::ORDER => 'order:{id}',
+                    BenchmarkTemplates::USER => 'user:{id}',
+                    BenchmarkTemplates::PRODUCT => 'product:{id}',
+                    BenchmarkTemplates::SESSION => 'session:{id}',
                 ]
             ]
         ]);
@@ -102,45 +108,52 @@ class CacheBenchmark {
         // 清空缓存
         $cache->flush();
         
-        // 1. 单次操作性能测试
-        $this->benchmarkSingleOperations($driverName);
+        // 1. 基础操作性能测试
+        $this->benchmarkBasicOperations($driverName);
         
-        // 2. 批量操作性能测试
+        // 2. 模板操作性能测试
+        $this->benchmarkTemplateOperations($driverName);
+        
+        // 3. 批量操作性能测试
         $this->benchmarkBatchOperations($driverName);
         
-        // 3. 缓存命中率测试
+        // 4. 自动回填性能测试
+        $this->benchmarkAutoFillOperations($driverName);
+        
+        // 5. 缓存命中率测试
         $this->benchmarkHitRate($driverName);
-        
-        // 4. 标签操作性能测试
-        $this->benchmarkTagOperations($driverName);
-        
-        // 5. 模板操作性能测试
-        $this->benchmarkTemplateOperations($driverName);
     }
     
-    private function benchmarkSingleOperations($driverName) {
-        echo "单次操作性能测试:\n";
+    private function benchmarkBasicOperations($driverName) {
+        echo "基础操作性能测试:\n";
         
         $cache = CacheKVFactory::store();
         
         // Set 操作
         $startTime = microtime(true);
         for ($i = 0; $i < $this->iterations; $i++) {
-            $cache->set("test_key_{$i}", "test_value_{$i}");
+            $cache->set("basic_key_{$i}", "basic_value_{$i}");
         }
         $setTime = microtime(true) - $startTime;
         
         // Get 操作
         $startTime = microtime(true);
         for ($i = 0; $i < $this->iterations; $i++) {
-            $cache->get("test_key_{$i}");
+            $cache->get("basic_key_{$i}");
         }
         $getTime = microtime(true) - $startTime;
+        
+        // Has 操作
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->iterations; $i++) {
+            $cache->has("basic_key_{$i}");
+        }
+        $hasTime = microtime(true) - $startTime;
         
         // Delete 操作
         $startTime = microtime(true);
         for ($i = 0; $i < $this->iterations; $i++) {
-            $cache->delete("test_key_{$i}");
+            $cache->delete("basic_key_{$i}");
         }
         $deleteTime = microtime(true) - $startTime;
         
@@ -148,8 +161,56 @@ class CacheBenchmark {
             $this->iterations, $setTime, $this->iterations / $setTime);
         printf("  Get:    %d 次操作, %.4f 秒, %.0f ops/sec\n", 
             $this->iterations, $getTime, $this->iterations / $getTime);
+        printf("  Has:    %d 次操作, %.4f 秒, %.0f ops/sec\n", 
+            $this->iterations, $hasTime, $this->iterations / $hasTime);
         printf("  Delete: %d 次操作, %.4f 秒, %.0f ops/sec\n", 
             $this->iterations, $deleteTime, $this->iterations / $deleteTime);
+    }
+    
+    private function benchmarkTemplateOperations($driverName) {
+        echo "\n模板操作性能测试:\n";
+        
+        $cache = CacheKVFactory::store();
+        
+        // 模板 Set 操作
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->batchSize; $i++) {
+            $cache->setByTemplate(BenchmarkTemplates::USER, ['id' => $i], [
+                'id' => $i,
+                'name' => "User {$i}",
+                'email' => "user{$i}@example.com"
+            ]);
+        }
+        $templateSetTime = microtime(true) - $startTime;
+        
+        // 模板 Get 操作
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->batchSize; $i++) {
+            $cache->getByTemplate(BenchmarkTemplates::USER, ['id' => $i]);
+        }
+        $templateGetTime = microtime(true) - $startTime;
+        
+        // 模板 Get 带回调操作
+        $cache->flush(); // 清空缓存测试回调
+        
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->batchSize; $i++) {
+            $cache->getByTemplate(BenchmarkTemplates::USER, ['id' => $i], function() use ($i) {
+                return [
+                    'id' => $i,
+                    'name' => "User {$i}",
+                    'email' => "user{$i}@example.com"
+                ];
+            });
+        }
+        $templateGetWithCallbackTime = microtime(true) - $startTime;
+        
+        printf("  模板 Set:           %d 项, %.4f 秒, %.0f items/sec\n", 
+            $this->batchSize, $templateSetTime, $this->batchSize / $templateSetTime);
+        printf("  模板 Get:           %d 项, %.4f 秒, %.0f items/sec\n", 
+            $this->batchSize, $templateGetTime, $this->batchSize / $templateGetTime);
+        printf("  模板 Get (回调):    %d 项, %.4f 秒, %.0f items/sec\n", 
+            $this->batchSize, $templateGetWithCallbackTime, $this->batchSize / $templateGetWithCallbackTime);
     }
     
     private function benchmarkBatchOperations($driverName) {
@@ -189,6 +250,34 @@ class CacheBenchmark {
             $this->batchSize, $batchDeleteTime, $this->batchSize / $batchDeleteTime);
     }
     
+    private function benchmarkAutoFillOperations($driverName) {
+        echo "\n自动回填性能测试:\n";
+        
+        $cache = CacheKVFactory::store();
+        $cache->flush();
+        
+        // 测试自动回填功能
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->batchSize; $i++) {
+            $cache->get("autofill_key_{$i}", function() use ($i) {
+                return "autofill_value_{$i}";
+            });
+        }
+        $autoFillTime = microtime(true) - $startTime;
+        
+        // 测试缓存命中
+        $startTime = microtime(true);
+        for ($i = 0; $i < $this->batchSize; $i++) {
+            $cache->get("autofill_key_{$i}");
+        }
+        $hitTime = microtime(true) - $startTime;
+        
+        printf("  自动回填:    %d 项, %.4f 秒, %.0f items/sec\n", 
+            $this->batchSize, $autoFillTime, $this->batchSize / $autoFillTime);
+        printf("  缓存命中:    %d 项, %.4f 秒, %.0f items/sec\n", 
+            $this->batchSize, $hitTime, $this->batchSize / $hitTime);
+    }
+    
     private function benchmarkHitRate($driverName) {
         echo "\n缓存命中率测试:\n";
         
@@ -222,82 +311,6 @@ class CacheBenchmark {
         printf("  总查询: %d 次, 命中: %d, 未命中: %d\n", $hits + $misses, $hits, $misses);
         printf("  命中率: %.1f%%, 总时间: %.4f 秒, %.0f ops/sec\n", 
             $hitRate, $totalTime, $this->iterations / $totalTime);
-    }
-    
-    private function benchmarkTagOperations($driverName) {
-        echo "\n标签操作性能测试:\n";
-        
-        $cache = CacheKVFactory::store();
-        
-        // 设置带标签的缓存
-        $startTime = microtime(true);
-        for ($i = 0; $i < $this->batchSize; $i++) {
-            $tags = ['tag1', 'tag2', "tag_group_" . ($i % 10)];
-            if (method_exists($cache->getDriver(), 'setWithTag')) {
-                $cache->getDriver()->setWithTag("tag_test_{$i}", "value_{$i}", $tags, 3600);
-            } else {
-                // 模拟标签操作
-                $cache->set("tag_test_{$i}", "value_{$i}");
-            }
-        }
-        $tagSetTime = microtime(true) - $startTime;
-        
-        // 清除标签
-        $startTime = microtime(true);
-        if (method_exists($cache, 'clearTag')) {
-            $cache->clearTag('tag1');
-        }
-        $tagClearTime = microtime(true) - $startTime;
-        
-        printf("  标签设置: %d 项, %.4f 秒, %.0f items/sec\n", 
-            $this->batchSize, $tagSetTime, $this->batchSize / $tagSetTime);
-        printf("  标签清除: %.4f 秒\n", $tagClearTime);
-    }
-    
-    private function benchmarkTemplateOperations($driverName) {
-        echo "\n模板操作性能测试:\n";
-        
-        $cache = CacheKVFactory::store();
-        
-        // 模板 Set 操作
-        $startTime = microtime(true);
-        for ($i = 0; $i < $this->batchSize; $i++) {
-            $cache->setByTemplate(CacheTemplates::USER, ['id' => $i], [
-                'id' => $i,
-                'name' => "User {$i}",
-                'email' => "user{$i}@example.com"
-            ]);
-        }
-        $templateSetTime = microtime(true) - $startTime;
-        
-        // 模板 Get 操作
-        $startTime = microtime(true);
-        for ($i = 0; $i < $this->batchSize; $i++) {
-            $cache->getByTemplate(CacheTemplates::USER, ['id' => $i]);
-        }
-        $templateGetTime = microtime(true) - $startTime;
-        
-        // 模板 Get 带回调操作
-        $cache->flush(); // 清空缓存测试回调
-        
-        $startTime = microtime(true);
-        for ($i = 0; $i < $this->batchSize; $i++) {
-            $cache->getByTemplate(CacheTemplates::USER, ['id' => $i], function() use ($i) {
-                return [
-                    'id' => $i,
-                    'name' => "User {$i}",
-                    'email' => "user{$i}@example.com"
-                ];
-            });
-        }
-        $templateGetWithCallbackTime = microtime(true) - $startTime;
-        
-        printf("  模板 Set:           %d 项, %.4f 秒, %.0f items/sec\n", 
-            $this->batchSize, $templateSetTime, $this->batchSize / $templateSetTime);
-        printf("  模板 Get:           %d 项, %.4f 秒, %.0f items/sec\n", 
-            $this->batchSize, $templateGetTime, $this->batchSize / $templateGetTime);
-        printf("  模板 Get (回调):    %d 项, %.4f 秒, %.0f items/sec\n", 
-            $this->batchSize, $templateGetWithCallbackTime, $this->batchSize / $templateGetWithCallbackTime);
     }
 }
 
