@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php-version: ['7.4', '8.0', '8.1', '8.2', '8.3']
+        
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        extensions: redis, json, mbstring
+        coverage: xdebug
+
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-${{ matrix.php-version }}-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run test suite
+      run: composer run-script test
+
+    - name: Run benchmark
+      run: composer run-script benchmark
+
+    - name: Check code style
+      run: composer run-script cs-check
+      if: matrix.php-version == '8.1'
+
+    - name: Generate coverage report
+      run: composer run-script test-coverage
+      if: matrix.php-version == '8.1'
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.php-version == '8.1'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+      
+    - name: Security check
+      run: |
+        composer audit
+        
+  static-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: json, mbstring
+        
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+      
+    - name: Run PHPStan
+      run: |
+        if [ -f phpstan.neon ]; then
+          vendor/bin/phpstan analyse
+        else
+          echo "PHPStan configuration not found, skipping static analysis"
+        fi

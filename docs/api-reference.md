@@ -1,119 +1,287 @@
 # API 参考
 
-CacheKV 提供简洁而强大的 API，本文档详细介绍所有可用的方法和参数。
+本文档提供 CacheKV 的完整 API 参考。
+
+## 辅助函数
+
+### cache_kv_get()
+
+从缓存获取数据，如果不存在则执行回调函数并回填缓存。
+
+```php
+function cache_kv_get(string $template, array $params, callable $callback, int $ttl = null): mixed
+```
+
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+- `$callback` (callable): 缓存未命中时的回调函数
+- `$ttl` (int|null): 缓存时间（秒），null 使用默认值
+
+**返回值：**
+- `mixed`: 缓存数据或回调函数返回值
+
+**示例：**
+```php
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+}, 3600);
+```
+
+### cache_kv_set()
+
+设置缓存数据。
+
+```php
+function cache_kv_set(string $template, array $params, mixed $value, int $ttl = null): bool
+```
+
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+- `$value` (mixed): 要缓存的数据
+- `$ttl` (int|null): 缓存时间（秒）
+
+**返回值：**
+- `bool`: 设置成功返回 true
+
+**示例：**
+```php
+cache_kv_set(CacheTemplates::USER, ['id' => 123], $userData, 3600);
+```
+
+### cache_kv_delete()
+
+删除缓存数据。
+
+```php
+function cache_kv_delete(string $template, array $params): bool
+```
+
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+
+**返回值：**
+- `bool`: 删除成功返回 true
+
+**示例：**
+```php
+cache_kv_delete(CacheTemplates::USER, ['id' => 123]);
+```
+
+### cache_kv_clear_tag()
+
+清除指定标签的所有缓存。
+
+```php
+function cache_kv_clear_tag(string $tag): bool
+```
+
+**参数：**
+- `$tag` (string): 标签名称
+
+**返回值：**
+- `bool`: 清除成功返回 true
+
+**示例：**
+```php
+cache_kv_clear_tag('users');
+```
+
+### cache_kv_quick()
+
+快速创建 CacheKV 实例。
+
+```php
+function cache_kv_quick(string $appPrefix, string $envPrefix, array $templates): CacheKV
+```
+
+**参数：**
+- `$appPrefix` (string): 应用前缀
+- `$envPrefix` (string): 环境前缀
+- `$templates` (array): 模板配置
+
+**返回值：**
+- `CacheKV`: CacheKV 实例
+
+**示例：**
+```php
+$cache = cache_kv_quick('myapp', 'dev', [
+    'user' => 'user:{id}',
+    'product' => 'product:{id}',
+]);
+```
 
 ## CacheKV 类
 
-### 构造方法
+### 构造函数
 
 ```php
-public function __construct(CacheDriver $driver, int $defaultTtl = 3600, KeyManager $keyManager = null)
+public function __construct(CacheDriverInterface $driver, int $defaultTtl, KeyManagerInterface $keyManager)
 ```
 
 **参数：**
-- `$driver` - 缓存驱动实例
-- `$defaultTtl` - 默认过期时间（秒）
-- `$keyManager` - 键管理器实例（可选）
+- `$driver` (CacheDriverInterface): 缓存驱动
+- `$defaultTtl` (int): 默认 TTL
+- `$keyManager` (KeyManagerInterface): 键管理器
 
-**示例：**
-```php
-$cache = new CacheKV(new ArrayDriver(), 3600, $keyManager);
-```
+### getByTemplate()
 
-### 模板方法
-
-#### getByTemplate()
-
-使用模板获取缓存数据，支持自动回填。
+根据模板获取缓存数据。
 
 ```php
-public function getByTemplate(string $template, array $params = [], callable $callback = null, int $ttl = null, bool $slidingExpiration = false): mixed
+public function getByTemplate(string $template, array $params, callable $callback = null, int $ttl = null): mixed
 ```
 
 **参数：**
-- `$template` - 键模板名称
-- `$params` - 模板参数
-- `$callback` - 缓存未命中时的回调函数
-- `$ttl` - 缓存过期时间（可选）
-- `$slidingExpiration` - 是否启用滑动过期（可选）
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+- `$callback` (callable|null): 缓存未命中时的回调函数
+- `$ttl` (int|null): 缓存时间
+
+**返回值：**
+- `mixed`: 缓存数据
 
 **示例：**
 ```php
-// 基本用法
-$user = $cache->getByTemplate('user', ['id' => 123], function() {
+$user = $cache->getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
     return getUserFromDatabase(123);
-}, 3600);
-
-// 启用滑动过期
-$hotData = $cache->getByTemplate('hot_data', ['id' => 123], function() {
-    return getHotDataFromDatabase(123);
-}, 3600, true); // 每次访问都会延长过期时间
+});
 ```
 
-#### setByTemplate()
+### setByTemplate()
 
-使用模板设置缓存数据。
+根据模板设置缓存数据。
 
 ```php
-public function setByTemplate(string $template, array $params = [], mixed $value = null, int $ttl = null): bool
+public function setByTemplate(string $template, array $params, mixed $value, int $ttl = null): bool
 ```
+
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+- `$value` (mixed): 要缓存的数据
+- `$ttl` (int|null): 缓存时间
+
+**返回值：**
+- `bool`: 设置成功返回 true
+
+### setByTemplateWithTag()
+
+根据模板设置带标签的缓存数据。
+
+```php
+public function setByTemplateWithTag(string $template, array $params, mixed $value, array $tags, int $ttl = null): bool
+```
+
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
+- `$value` (mixed): 要缓存的数据
+- `$tags` (array): 标签数组
+- `$ttl` (int|null): 缓存时间
+
+**返回值：**
+- `bool`: 设置成功返回 true
 
 **示例：**
 ```php
-$cache->setByTemplate('user', ['id' => 123], $userData, 3600);
+$cache->setByTemplateWithTag(
+    CacheTemplates::USER, 
+    ['id' => 123], 
+    $userData, 
+    ['users', 'vip_users']
+);
 ```
 
-#### setByTemplateWithTag()
+### deleteByTemplate()
 
-使用模板设置带标签的缓存。
+根据模板删除缓存数据。
 
 ```php
-public function setByTemplateWithTag(string $template, array $params = [], mixed $value = null, array $tags = [], int $ttl = null): bool
+public function deleteByTemplate(string $template, array $params): bool
 ```
 
-**示例：**
-```php
-$cache->setByTemplateWithTag('user', ['id' => 123], $userData, ['users', 'vip_users']);
-```
+**参数：**
+- `$template` (string): 缓存模板名称
+- `$params` (array): 模板参数
 
-#### hasByTemplate()
+**返回值：**
+- `bool`: 删除成功返回 true
 
-检查模板生成的缓存是否存在。
+### get()
 
-```php
-public function hasByTemplate(string $template, array $params = []): bool
-```
-
-#### forgetByTemplate()
-
-删除模板生成的缓存。
+根据键获取缓存数据。
 
 ```php
-public function forgetByTemplate(string $template, array $params = []): bool
+public function get(string $key): mixed
 ```
 
-#### makeKey()
+**参数：**
+- `$key` (string): 缓存键
 
-生成缓存键（不执行缓存操作）。
+**返回值：**
+- `mixed`: 缓存数据，不存在返回 null
+
+### set()
+
+根据键设置缓存数据。
 
 ```php
-public function makeKey(string $template, array $params = [], bool $withPrefix = true): string
+public function set(string $key, mixed $value, int $ttl = null): bool
 ```
 
-### 批量操作
+**参数：**
+- `$key` (string): 缓存键
+- `$value` (mixed): 要缓存的数据
+- `$ttl` (int|null): 缓存时间
 
-#### getMultiple()
+**返回值：**
+- `bool`: 设置成功返回 true
+
+### delete()
+
+根据键删除缓存数据。
+
+```php
+public function delete(string $key): bool
+```
+
+**参数：**
+- `$key` (string): 缓存键
+
+**返回值：**
+- `bool`: 删除成功返回 true
+
+### has()
+
+检查缓存键是否存在。
+
+```php
+public function has(string $key): bool
+```
+
+**参数：**
+- `$key` (string): 缓存键
+
+**返回值：**
+- `bool`: 存在返回 true
+
+### getMultiple()
 
 批量获取缓存数据。
 
 ```php
-public function getMultiple(array $keys, callable $callback = null, int $ttl = null): array
+public function getMultiple(array $keys, callable $callback = null): array
 ```
 
 **参数：**
-- `$keys` - 缓存键数组
-- `$callback` - 处理未命中键的回调函数
-- `$ttl` - 缓存过期时间（可选）
+- `$keys` (array): 缓存键数组
+- `$callback` (callable|null): 处理未命中键的回调函数
+
+**返回值：**
+- `array`: 键值对数组
 
 **示例：**
 ```php
@@ -122,121 +290,168 @@ $users = $cache->getMultiple($userKeys, function($missingKeys) {
 });
 ```
 
-### 标签管理
+### setMultiple()
 
-#### clearTag()
+批量设置缓存数据。
 
-清除指定标签下的所有缓存。
+```php
+public function setMultiple(array $values, int $ttl = null): bool
+```
+
+**参数：**
+- `$values` (array): 键值对数组
+- `$ttl` (int|null): 缓存时间
+
+**返回值：**
+- `bool`: 设置成功返回 true
+
+### deleteMultiple()
+
+批量删除缓存数据。
+
+```php
+public function deleteMultiple(array $keys): bool
+```
+
+**参数：**
+- `$keys` (array): 缓存键数组
+
+**返回值：**
+- `bool`: 删除成功返回 true
+
+### clearTag()
+
+清除指定标签的所有缓存。
 
 ```php
 public function clearTag(string $tag): bool
 ```
 
+**参数：**
+- `$tag` (string): 标签名称
+
+**返回值：**
+- `bool`: 清除成功返回 true
+
+### keys()
+
+根据模式获取缓存键。
+
+```php
+public function keys(string $pattern): array
+```
+
+**参数：**
+- `$pattern` (string): 键模式（支持通配符 *）
+
+**返回值：**
+- `array`: 匹配的键数组
+
 **示例：**
 ```php
-$cache->clearTag('users'); // 清除所有用户相关缓存
+$userKeys = $cache->keys('myapp:prod:v1:user_profile:*');
 ```
 
-### 基础方法
+### flush()
 
-#### get()
-
-获取缓存数据。
+清空所有缓存。
 
 ```php
-public function get(string $key, callable $callback = null, int $ttl = null): mixed
-```
-
-#### set()
-
-设置缓存数据。
-
-```php
-public function set(string $key, mixed $value, int $ttl = null): bool
-```
-
-#### has()
-
-检查缓存是否存在。
-
-```php
-public function has(string $key): bool
-```
-
-#### forget()
-
-删除缓存。
-
-```php
-public function forget(string $key): bool
-```
-
-#### setWithTag()
-
-设置带标签的缓存。
-
-```php
-public function setWithTag(string $key, mixed $value, array $tags, int $ttl = null): bool
-```
-
-### 统计方法
-
-#### getStats()
-
-获取缓存统计信息。
-
-```php
-public function getStats(): array
+public function flush(): bool
 ```
 
 **返回值：**
-```php
-[
-    'hits' => 85,        // 命中次数
-    'misses' => 15,      // 未命中次数
-    'hit_rate' => 85.0   // 命中率（百分比）
-]
-```
+- `bool`: 清空成功返回 true
 
-## KeyManager 类
+## CacheKVFactory 类
 
-### 构造方法
+### setDefaultConfig()
+
+设置默认配置。
 
 ```php
-public function __construct(array $config = [])
+public static function setDefaultConfig(array $config): void
 ```
 
-**配置参数：**
-```php
-[
-    'app_prefix' => 'myapp',     // 应用前缀
-    'env_prefix' => 'prod',      // 环境前缀
-    'version' => 'v1',           // 版本号
-    'separator' => ':',          // 分隔符
-    'templates' => [             // 键模板
-        'user' => 'user:{id}',
-        'product' => 'product:{id}',
-    ]
-]
-```
-
-### 核心方法
-
-#### make()
-
-生成缓存键。
-
-```php
-public function make(string $template, array $params = [], bool $withPrefix = true): string
-```
+**参数：**
+- `$config` (array): 配置数组
 
 **示例：**
 ```php
-$key = $keyManager->make('user', ['id' => 123]);
-// 返回: myapp:prod:v1:user:123
+CacheKVFactory::setDefaultConfig([
+    'default' => 'redis',
+    'stores' => [
+        'redis' => [
+            'driver' => new RedisDriver($redis),
+            'ttl' => 3600
+        ]
+    ],
+    'key_manager' => [
+        'app_prefix' => 'myapp',
+        'env_prefix' => 'prod',
+        'version' => 'v1',
+        'templates' => [
+            CacheTemplates::USER => 'user:{id}',
+        ]
+    ]
+]);
 ```
 
-#### parse()
+### store()
+
+获取缓存存储实例。
+
+```php
+public static function store(string $name = null): CacheKV
+```
+
+**参数：**
+- `$name` (string|null): 存储名称，null 使用默认存储
+
+**返回值：**
+- `CacheKV`: CacheKV 实例
+
+**示例：**
+```php
+$cache = CacheKVFactory::store();
+$redisCache = CacheKVFactory::store('redis');
+```
+
+### getKeyManager()
+
+获取键管理器实例。
+
+```php
+public static function getKeyManager(): KeyManagerInterface
+```
+
+**返回值：**
+- `KeyManagerInterface`: 键管理器实例
+
+## KeyManager 类
+
+### make()
+
+根据模板和参数生成缓存键。
+
+```php
+public function make(string $template, array $params = []): string
+```
+
+**参数：**
+- `$template` (string): 模板名称
+- `$params` (array): 参数数组
+
+**返回值：**
+- `string`: 生成的缓存键
+
+**示例：**
+```php
+$key = $keyManager->make(CacheTemplates::USER, ['id' => 123]);
+// 结果: myapp:prod:v1:user_profile:123
+```
+
+### parse()
 
 解析缓存键。
 
@@ -244,203 +459,190 @@ $key = $keyManager->make('user', ['id' => 123]);
 public function parse(string $key): array
 ```
 
+**参数：**
+- `$key` (string): 缓存键
+
 **返回值：**
+- `array`: 解析结果数组
+
+**示例：**
 ```php
-[
-    'full_key' => 'myapp:prod:v1:user:123',
-    'has_prefix' => true,
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1',
-    'business_key' => 'user:123'
-]
+$parsed = $keyManager->parse('myapp:prod:v1:user_profile:123');
+// 结果: ['app_prefix' => 'myapp', 'env_prefix' => 'prod', ...]
 ```
 
-#### addTemplate()
+### getTemplate()
 
-添加键模板。
-
-```php
-public function addTemplate(string $name, string $pattern): void
-```
-
-#### validate()
-
-验证键格式。
+获取模板配置。
 
 ```php
-public function validate(string $key): bool
+public function getTemplate(string $name): string
 ```
+
+**参数：**
+- `$name` (string): 模板名称
+
+**返回值：**
+- `string`: 模板字符串
+
+### setTemplate()
+
+设置模板配置。
+
+```php
+public function setTemplate(string $name, string $template): void
+```
+
+**参数：**
+- `$name` (string): 模板名称
+- `$template` (string): 模板字符串
 
 ## CacheKVFacade 类
 
-静态门面类，提供便捷的静态方法调用。
+门面类，提供静态方法访问 CacheKV 功能。
 
-### 配置方法
-
-#### setInstance()
-
-设置 CacheKV 实例。
+### getByTemplate()
 
 ```php
-public static function setInstance(CacheKV $instance): void
+public static function getByTemplate(string $template, array $params, callable $callback = null, int $ttl = null): mixed
 ```
 
-### 门面方法
-
-所有 CacheKV 的方法都可以通过门面静态调用：
+### setByTemplate()
 
 ```php
-// 模板方法
-CacheKVFacade::getByTemplate($template, $params, $callback, $ttl);
-CacheKVFacade::setByTemplate($template, $params, $value, $ttl);
-
-// 基础方法
-CacheKVFacade::get($key, $callback, $ttl);
-CacheKVFacade::set($key, $value, $ttl);
-
-// 批量和标签方法
-CacheKVFacade::getMultiple($keys, $callback, $ttl);
-CacheKVFacade::clearTag($tag);
-
-// 统计方法
-CacheKVFacade::getStats();
+public static function setByTemplate(string $template, array $params, mixed $value, int $ttl = null): bool
 ```
 
-## CacheKVServiceProvider 类
-
-### register()
-
-注册 CacheKV 服务。
+### deleteByTemplate()
 
 ```php
-public static function register(array $config = null): CacheKV
+public static function deleteByTemplate(string $template, array $params): bool
 ```
 
-**配置示例：**
-```php
-$config = [
-    'default' => 'redis',
-    'stores' => [
-        'redis' => [
-            'driver' => RedisDriver::class
-        ]
-    ],
-    'default_ttl' => 3600,
-    'key_manager' => [
-        'app_prefix' => 'myapp',
-        'env_prefix' => 'prod',
-        'version' => 'v1',
-        'templates' => [
-            'user' => 'user:{id}',
-            'product' => 'product:{id}',
-        ]
-    ]
-];
+### clearTag()
 
-CacheKVServiceProvider::register($config);
+```php
+public static function clearTag(string $tag): bool
+```
+
+**示例：**
+```php
+// 注册服务提供者后使用
+$user = CacheKVFacade::getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
 ```
 
 ## 驱动接口
 
-### ArrayDriver
+### CacheDriverInterface
 
-内存数组驱动，适用于开发和测试。
-
-```php
-$driver = new ArrayDriver();
-```
-
-### RedisDriver
-
-Redis 驱动，适用于生产环境。不依赖特定的 Redis 客户端库。
-
-#### 使用 Predis
-```php
-// 安装 Predis: composer require predis/predis
-$redis = new \Predis\Client([
-    'host' => '127.0.0.1',
-    'port' => 6379,
-    'database' => 0,
-]);
-
-$driver = new RedisDriver($redis);
-```
-
-#### 使用 PhpRedis 扩展
-```php
-$redis = new \Redis();
-$redis->connect('127.0.0.1', 6379);
-$redis->select(0);
-
-$driver = new RedisDriver($redis);
-```
-
-**特点：**
-- 数据持久化
-- 支持分布式
-- 高性能
-- 支持任何 Redis 客户端
-
-## 使用示例
-
-### 基本使用
+所有缓存驱动必须实现的接口。
 
 ```php
-// 创建实例
-$keyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1'
-]);
-
-$cache = new CacheKV(new ArrayDriver(), 3600, $keyManager);
-
-// 使用模板方法
-$user = $cache->getByTemplate('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
-});
+interface CacheDriverInterface
+{
+    public function get(string $key): mixed;
+    public function set(string $key, mixed $value, int $ttl): bool;
+    public function delete(string $key): bool;
+    public function has(string $key): bool;
+    public function getMultiple(array $keys): array;
+    public function setMultiple(array $values, int $ttl): bool;
+    public function deleteMultiple(array $keys): bool;
+    public function keys(string $pattern): array;
+    public function flush(): bool;
+}
 ```
 
-### 门面使用
+### TaggableDriverInterface
+
+支持标签功能的驱动接口。
 
 ```php
-// 注册服务
-CacheKVServiceProvider::register([
-    'default' => 'array',
-    'stores' => ['array' => ['driver' => ArrayDriver::class]],
-    'key_manager' => ['app_prefix' => 'myapp']
-]);
-
-// 使用门面
-$user = CacheKVFacade::getByTemplate('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
-});
+interface TaggableDriverInterface extends CacheDriverInterface
+{
+    public function setWithTag(string $key, mixed $value, array $tags, int $ttl): bool;
+    public function clearTag(string $tag): bool;
+    public function getTagKeys(string $tag): array;
+}
 ```
 
-### 批量操作
+## 异常类
+
+### CacheException
+
+缓存操作异常基类。
 
 ```php
-$userIds = [1, 2, 3, 4, 5];
-$userKeys = array_map(function($id) use ($keyManager) {
-    return $keyManager->make('user', ['id' => $id]);
-}, $userIds);
-
-$users = $cache->getMultiple($userKeys, function($missingKeys) {
-    return getUsersFromDatabase($missingKeys);
-});
+class CacheException extends \Exception
+{
+    // 基础异常类
+}
 ```
 
-### 标签管理
+### DriverException
+
+驱动相关异常。
 
 ```php
-// 设置带标签的缓存
-$cache->setByTemplateWithTag('user', ['id' => 123], $userData, ['users', 'vip_users']);
-
-// 清除标签
-$cache->clearTag('users');
+class DriverException extends CacheException
+{
+    // 驱动异常
+}
 ```
 
----
+### KeyManagerException
 
-**这份 API 参考文档涵盖了 CacheKV 的所有核心功能！** 📚
+键管理器相关异常。
+
+```php
+class KeyManagerException extends CacheException
+{
+    // 键管理器异常
+}
+```
+
+## 配置选项
+
+### 完整配置示例
+
+```php
+[
+    // 默认存储
+    'default' => 'redis',
+    
+    // 存储配置
+    'stores' => [
+        'redis' => [
+            'driver' => new RedisDriver($redis),
+            'ttl' => 3600,
+            'prefix' => 'cache:'
+        ],
+        'array' => [
+            'driver' => new ArrayDriver(),
+            'ttl' => 1800
+        ]
+    ],
+    
+    // 键管理器配置
+    'key_manager' => [
+        'app_prefix' => 'myapp',
+        'env_prefix' => 'prod',
+        'version' => 'v1',
+        'separator' => ':',
+        'templates' => [
+            CacheTemplates::USER => 'user:{id}',
+            CacheTemplates::PRODUCT => 'product:{id}:{status}',
+        ]
+    ],
+    
+    // 全局选项
+    'options' => [
+        'serialize' => true,
+        'compress' => false,
+        'encrypt' => false
+    ]
+]
+```
+
+这个 API 参考文档涵盖了 CacheKV 的所有公共接口和使用方法，为开发者提供了完整的技术参考。

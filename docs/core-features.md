@@ -1,385 +1,442 @@
 # 核心功能
 
-CacheKV 提供四大核心功能，让缓存管理变得简单高效。
+CacheKV 提供了一套完整的缓存解决方案，本文档详细介绍各项核心功能。
 
 ## 1. 自动回填缓存
 
-### 核心理念
-
-**"若无则从数据源获取并回填缓存"** - 这是 CacheKV 最核心的功能。
-
-### 传统方式 vs CacheKV
-
-```php
-// ❌ 传统方式：手动管理缓存
-function getUser($userId) {
-    $cacheKey = "user:{$userId}";
-    
-    if ($cache->has($cacheKey)) {
-        return $cache->get($cacheKey);
-    }
-    
-    $user = getUserFromDatabase($userId);
-    if ($user) {
-        $cache->set($cacheKey, $user, 3600);
-    }
-    
-    return $user;
-}
-
-// ✅ CacheKV 方式：自动管理
-function getUser($userId) {
-    return $cache->getByTemplate('user', ['id' => $userId], function() use ($userId) {
-        return getUserFromDatabase($userId);
-    });
-}
-```
+### 功能说明
+CacheKV 的核心功能是实现"若无则从数据源获取并回填缓存"的模式，一行代码解决复杂的缓存逻辑。
 
 ### 基本用法
 
 ```php
-// 获取用户信息
-$user = $cache->getByTemplate('user', ['id' => 123], function() {
+// 使用辅助函数
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
     return getUserFromDatabase(123);
 });
 
-// 获取商品信息，自定义过期时间
-$product = $cache->getByTemplate('product', ['id' => 456], function() {
-    return getProductFromDatabase(456);
-}, 1800); // 30分钟过期
+// 使用 CacheKV 实例
+$cache = CacheKVFactory::store();
+$user = $cache->getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
 ```
 
-### 防穿透机制
+### 工作流程
 
-CacheKV 自动缓存空值，防止缓存穿透：
+1. **检查缓存**：根据模板和参数生成缓存键，检查缓存是否存在
+2. **缓存命中**：如果缓存存在且未过期，直接返回缓存数据
+3. **缓存未命中**：执行回调函数获取数据
+4. **自动回填**：将获取的数据写入缓存
+5. **返回数据**：返回获取的数据
+
+### 高级选项
 
 ```php
-$user = $cache->getByTemplate('user', ['id' => 999999], function() {
-    return getUserFromDatabase(999999); // 返回 null
-});
+// 自定义 TTL
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+}, 1800); // 30分钟
 
-// 即使返回 null，也会被缓存，防止重复查询数据库
+// 条件缓存
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+    $user = getUserFromDatabase(123);
+    // 只缓存有效用户
+    return $user && $user['status'] === 'active' ? $user : null;
+});
 ```
 
 ## 2. 批量操作
 
-### 解决 N+1 查询问题
-
-```php
-// ❌ N+1 查询问题
-$users = [];
-foreach ($userIds as $id) {
-    $users[] = $cache->getByTemplate('user', ['id' => $id], function() use ($id) {
-        return getUserFromDatabase($id); // 每个ID都查询一次数据库
-    });
-}
-
-// ✅ 批量操作解决方案
-$userKeys = array_map(function($id) use ($keyManager) {
-    return $keyManager->make('user', ['id' => $id]);
-}, $userIds);
-
-$users = $cache->getMultiple($userKeys, function($missingKeys) {
-    // 只查询缓存中不存在的用户
-    $missingIds = extractIdsFromKeys($missingKeys);
-    return getUsersFromDatabase($missingIds); // 一次批量查询
-});
-```
-
-### 智能处理
-
-批量操作自动处理：
-- **缓存命中**：直接返回缓存数据
-- **缓存未命中**：批量查询数据源
-- **自动回填**：将新数据写入缓存
-
-### 性能对比
-
-| 场景 | 传统方式 | 批量操作 | 性能提升 |
-|------|----------|----------|----------|
-| 10个商品 | 10次数据库查询 | 1次批量查询 | 10x |
-| 100个用户 | 100次数据库查询 | 1次批量查询 | 100x |
-| 混合命中 | 部分查询+部分缓存 | 智能批量处理 | 5-50x |
-
-## 3. 标签管理
-
-### 解决相关缓存清理问题
-
-```php
-// ❌ 手动管理相关缓存
-function updateUser($userId, $data) {
-    updateUserInDatabase($userId, $data);
-    
-    // 需要手动清除所有相关缓存
-    $cache->forget("user:{$userId}");
-    $cache->forget("user_profile:{$userId}");
-    $cache->forget("user_settings:{$userId}");
-    $cache->forget("user_permissions:{$userId}");
-    // ... 可能还有更多
-}
-
-// ✅ 标签管理解决方案
-function updateUser($userId, $data) {
-    updateUserInDatabase($userId, $data);
-    
-    // 一行代码清除所有相关缓存
-    $cache->clearTag("user_{$userId}");
-}
-```
+### 功能说明
+CacheKV 支持批量操作，自动优化性能，避免 N+1 查询问题。
 
 ### 基本用法
 
-#### 设置带标签的缓存
-
 ```php
-// 设置用户基本信息，标签：users, user_123
-$cache->setByTemplateWithTag('user', ['id' => 123], $userData, ['users', 'user_123']);
+$cache = CacheKVFactory::store();
+$keyManager = CacheKVFactory::getKeyManager();
 
-// 设置用户资料，标签：users, user_123, profiles
-$cache->setByTemplateWithTag('user_profile', ['id' => 123], $profileData, 
-    ['users', 'user_123', 'profiles']);
+// 生成批量缓存键
+$userIds = [1, 2, 3, 4, 5];
+$userKeys = array_map(function($id) use ($keyManager) {
+    return $keyManager->make(CacheTemplates::USER, ['id' => $id]);
+}, $userIds);
+
+// 批量获取
+$users = $cache->getMultiple($userKeys, function($missingKeys) {
+    // 只查询缓存未命中的数据
+    $missingUserIds = extractIdsFromKeys($missingKeys);
+    return getUsersFromDatabase($missingUserIds);
+});
 ```
 
-#### 批量清除缓存
+### 性能优势
+
+| 操作 | 传统方式 | CacheKV 批量操作 | 性能提升 |
+|------|----------|------------------|----------|
+| 获取100个用户 | 100次缓存查询 + N次数据库查询 | 1次批量缓存查询 + 1次数据库查询 | **10-100x** |
+| 网络请求 | 100次 | 1-2次 | **50-100x** |
+| 数据库连接 | 可能100次 | 最多1次 | **显著减少** |
+
+### 批量设置
 
 ```php
-// 清除特定用户的所有缓存
-$cache->clearTag('user_123');
-
-// 清除所有用户缓存
-$cache->clearTag('users');
-
-// 清除所有权限相关缓存
-$cache->clearTag('permissions');
-```
-
-### 标签设计最佳实践
-
-```php
-// ✅ 推荐的标签设计
-$tags = [
-    'users',           // 全局用户标签
-    'user_123',        // 特定用户标签
-    'profiles',        // 功能模块标签
-    'vip_users'        // 业务分组标签
+// 批量设置缓存
+$data = [
+    $keyManager->make(CacheTemplates::USER, ['id' => 1]) => $user1Data,
+    $keyManager->make(CacheTemplates::USER, ['id' => 2]) => $user2Data,
+    $keyManager->make(CacheTemplates::USER, ['id' => 3]) => $user3Data,
 ];
 
-// ❌ 避免的设计
+$cache->setMultiple($data, 3600);
+```
+
+## 3. 标签管理
+
+### 功能说明
+标签管理允许你为缓存项添加标签，然后批量操作具有相同标签的缓存项。
+
+### 基本用法
+
+```php
+$cache = CacheKVFactory::store();
+
+// 设置带标签的缓存
+$cache->setByTemplateWithTag(
+    CacheTemplates::USER, 
+    ['id' => 123], 
+    $userData, 
+    ['users', 'vip_users', 'active_users']
+);
+
+// 批量清除标签相关的所有缓存
+$cache->clearTag('users'); // 清除所有用户缓存
+$cache->clearTag('vip_users'); // 只清除VIP用户缓存
+```
+
+### 标签策略
+
+```php
+class CacheHelper {
+    public static function setUserCache($userId, $userData) {
+        $cache = CacheKVFactory::store();
+        
+        // 根据用户属性设置不同标签
+        $tags = ['users', "user_{$userId}"];
+        
+        if ($userData['is_vip']) {
+            $tags[] = 'vip_users';
+        }
+        
+        if ($userData['department_id']) {
+            $tags[] = "department_{$userData['department_id']}";
+        }
+        
+        $cache->setByTemplateWithTag(
+            CacheTemplates::USER, 
+            ['id' => $userId], 
+            $userData,
+            $tags
+        );
+    }
+    
+    // 按部门清除用户缓存
+    public static function clearDepartmentUsers($departmentId) {
+        $cache = CacheKVFactory::store();
+        $cache->clearTag("department_{$departmentId}");
+    }
+}
+```
+
+### 标签层次结构
+
+```php
+// 层次化标签管理
 $tags = [
-    'u',               // 太简短
-    'user_profile_123', // 太具体
-    'all_data'         // 太宽泛
+    'products',                    // 所有商品
+    "category_{$categoryId}",      // 特定分类
+    "brand_{$brandId}",           // 特定品牌
+    "product_{$productId}",       // 特定商品
 ];
+
+// 清除操作
+$cache->clearTag('products');              // 清除所有商品缓存
+$cache->clearTag("category_{$categoryId}"); // 清除特定分类缓存
+$cache->clearTag("brand_{$brandId}");      // 清除特定品牌缓存
 ```
 
-## 4. 统一键管理
+## 4. 键管理系统
 
-### 解决键命名混乱问题
+### 功能说明
+CacheKV 提供统一的键管理系统，支持环境隔离、版本管理和模板化键生成。
+
+### 键结构
+
+```
+{app_prefix}:{env_prefix}:{version}:{template}:{params}
+```
+
+示例：`myapp:prod:v1:user_profile:123`
+
+### 配置示例
 
 ```php
-// ❌ 混乱的键命名
-$cache->set('user_123', $data);
-$cache->set('u:456', $data);
-$cache->set('user_info_789', $data);
-$cache->set('myapp_prod_user_101112', $data);
-
-// ✅ 统一的键管理
-$cache->setByTemplate('user', ['id' => 123], $data);
-$cache->setByTemplate('user', ['id' => 456], $data);
-$cache->setByTemplate('user', ['id' => 789], $data);
-$cache->setByTemplate('user', ['id' => 101112], $data);
-```
-
-### 键命名规范
-
-```
-{app_prefix}:{env_prefix}:{version}:{business_key}
-```
-
-**示例：**
-- `myapp:prod:v1:user:123` - 生产环境用户数据
-- `myapp:dev:v1:product:456` - 开发环境商品数据
-- `ecommerce:test:v2:order:ORD001` - 测试环境订单数据
-
-### 基本配置
-
-```php
-$keyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1',
-    'templates' => [
-        // 用户相关
-        'user' => 'user:{id}',
-        'user_profile' => 'user:profile:{id}',
-        'user_settings' => 'user:settings:{id}',
-        
-        // 商品相关
-        'product' => 'product:{id}',
-        'product_detail' => 'product:detail:{id}',
-        'product_price' => 'product:price:{id}',
-        
-        // 订单相关
-        'order' => 'order:{id}',
-        'order_items' => 'order:items:{order_id}',
+CacheKVFactory::setDefaultConfig([
+    'key_manager' => [
+        'app_prefix' => 'myapp',        // 应用前缀
+        'env_prefix' => 'prod',         // 环境前缀
+        'version' => 'v1',              // 版本号
+        'separator' => ':',             // 分隔符
+        'templates' => [
+            CacheTemplates::USER => 'user:{id}',
+            CacheTemplates::PRODUCT => 'product:{id}',
+            CacheTemplates::ORDER => 'order:{id}:{status}',
+        ]
     ]
 ]);
+```
+
+### 键生成
+
+```php
+$keyManager = CacheKVFactory::getKeyManager();
+
+// 简单参数
+$userKey = $keyManager->make(CacheTemplates::USER, ['id' => 123]);
+// 结果: myapp:prod:v1:user_profile:123
+
+// 复杂参数
+$orderKey = $keyManager->make(CacheTemplates::ORDER, [
+    'id' => 456, 
+    'status' => 'pending'
+]);
+// 结果: myapp:prod:v1:order_detail:456:pending
 ```
 
 ### 环境隔离
 
 ```php
 // 开发环境
-$devKeyManager = new KeyManager(['env_prefix' => 'dev']);
-$devKey = $devKeyManager->make('user', ['id' => 123]);   // myapp:dev:v1:user:123
+CacheKVFactory::setDefaultConfig([
+    'key_manager' => [
+        'env_prefix' => 'dev',
+        // ...
+    ]
+]);
+
+// 测试环境
+CacheKVFactory::setDefaultConfig([
+    'key_manager' => [
+        'env_prefix' => 'test',
+        // ...
+    ]
+]);
 
 // 生产环境
-$prodKeyManager = new KeyManager(['env_prefix' => 'prod']);
-$prodKey = $prodKeyManager->make('user', ['id' => 123]); // myapp:prod:v1:user:123
+CacheKVFactory::setDefaultConfig([
+    'key_manager' => [
+        'env_prefix' => 'prod',
+        // ...
+    ]
+]);
 ```
 
-### 版本管理
+## 5. 多驱动支持
 
+### 支持的驱动
+
+#### Redis 驱动
 ```php
-// 数据结构升级时使用新版本
-$v1KeyManager = new KeyManager(['version' => 'v1']);
-$v2KeyManager = new KeyManager(['version' => 'v2']);
+use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
-// 新旧版本的缓存不会冲突
-$v1Key = $v1KeyManager->make('user', ['id' => 123]); // myapp:prod:v1:user:123
-$v2Key = $v2KeyManager->make('user', ['id' => 123]); // myapp:prod:v2:user:123
+// 使用 Predis
+$redis = new \Predis\Client(['host' => '127.0.0.1', 'port' => 6379]);
+$driver = new RedisDriver($redis);
+
+// 使用 PhpRedis
+$redis = new \Redis();
+$redis->connect('127.0.0.1', 6379);
+$driver = new RedisDriver($redis);
 ```
 
-## 功能组合使用
+#### Array 驱动（内存）
+```php
+use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 
-### 完整的业务场景
+$driver = new ArrayDriver();
+```
+
+### 多存储配置
 
 ```php
-class UserService
-{
-    private $cache;
-    private $keyManager;
-    
-    public function __construct($cache, $keyManager)
-    {
-        $this->cache = $cache;
-        $this->keyManager = $keyManager;
+CacheKVFactory::setDefaultConfig([
+    'default' => 'redis',
+    'stores' => [
+        'redis' => [
+            'driver' => new RedisDriver($redis),
+            'ttl' => 3600
+        ],
+        'memory' => [
+            'driver' => new ArrayDriver(),
+            'ttl' => 1800
+        ]
+    ]
+]);
+
+// 使用不同存储
+$redisCache = CacheKVFactory::store('redis');
+$memoryCache = CacheKVFactory::store('memory');
+```
+
+## 6. TTL 管理
+
+### 全局 TTL
+```php
+CacheKVFactory::setDefaultConfig([
+    'stores' => [
+        'redis' => [
+            'driver' => $driver,
+            'ttl' => 3600  // 默认1小时
+        ]
+    ]
+]);
+```
+
+### 动态 TTL
+```php
+// 方法级别 TTL
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+}, 1800); // 30分钟
+
+// 模板级别 TTL
+$cache->getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+}, 7200); // 2小时
+```
+
+### TTL 策略
+
+```php
+class CacheHelper {
+    // 根据数据类型设置不同 TTL
+    public static function getUser($userId) {
+        return cache_kv_get(CacheTemplates::USER, ['id' => $userId], function() use ($userId) {
+            return getUserFromDatabase($userId);
+        }, 3600); // 用户信息：1小时
     }
     
-    // 1. 自动回填 + Key管理
-    public function getUser($userId)
-    {
-        return $this->cache->getByTemplate('user', ['id' => $userId], function() use ($userId) {
-            return $this->userRepository->find($userId);
-        });
+    public static function getProductPrice($productId) {
+        return cache_kv_get(CacheTemplates::PRODUCT_PRICE, ['id' => $productId], function() use ($productId) {
+            return getProductPrice($productId);
+        }, 300); // 商品价格：5分钟
     }
     
-    // 2. 批量操作 + Key管理
-    public function getUsers($userIds)
-    {
-        $userKeys = array_map(function($id) {
-            return $this->keyManager->make('user', ['id' => $id]);
-        }, $userIds);
-        
-        return $this->cache->getMultiple($userKeys, function($missingKeys) {
-            $missingIds = $this->extractUserIds($missingKeys);
-            return $this->userRepository->findByIds($missingIds);
-        });
-    }
-    
-    // 3. 标签管理 + Key管理
-    public function updateUser($userId, $data)
-    {
-        // 更新数据库
-        $this->userRepository->update($userId, $data);
-        
-        // 清除相关缓存
-        $this->cache->clearTag("user_{$userId}");
-    }
-    
-    // 4. 四大功能综合使用
-    public function getUserWithProfile($userId)
-    {
-        // 使用Key管理生成键
-        $user = $this->cache->getByTemplate('user', ['id' => $userId], function() use ($userId) {
-            // 自动回填：从数据库获取数据
-            $userData = $this->userRepository->find($userId);
-            
-            // 设置标签：便于后续批量清理
-            $this->cache->setByTemplateWithTag('user', ['id' => $userId], 
-                $userData, ['users', "user_{$userId}"]);
-            
-            return $userData;
-        });
-        
-        return $user;
+    public static function getApiData($endpoint) {
+        return cache_kv_get(CacheTemplates::API_DATA, ['endpoint' => $endpoint], function() use ($endpoint) {
+            return callExternalAPI($endpoint);
+        }, 1800); // API数据：30分钟
     }
 }
 ```
 
-## 性能监控
+## 7. 错误处理
+
+### 异常处理
+```php
+try {
+    $user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+        $user = getUserFromDatabase(123);
+        if (!$user) {
+            throw new UserNotFoundException('User not found');
+        }
+        return $user;
+    });
+} catch (UserNotFoundException $e) {
+    // 处理用户不存在
+    return null;
+} catch (\Exception $e) {
+    // 处理其他异常
+    Log::error('Cache error: ' . $e->getMessage());
+    return getUserFromDatabase(123); // 降级处理
+}
+```
+
+### 降级策略
+```php
+class CacheHelper {
+    public static function getUser($userId) {
+        try {
+            return cache_kv_get(CacheTemplates::USER, ['id' => $userId], function() use ($userId) {
+                return getUserFromDatabase($userId);
+            });
+        } catch (\Exception $e) {
+            // 缓存异常时直接查询数据库
+            Log::warning("Cache failed for user {$userId}, fallback to database");
+            return getUserFromDatabase($userId);
+        }
+    }
+}
+```
+
+## 8. 性能监控
 
 ### 缓存统计
-
 ```php
-$stats = $cache->getStats();
-
-echo "缓存性能统计:\n";
-echo "  命中次数: {$stats['hits']}\n";
-echo "  未命中次数: {$stats['misses']}\n";
-echo "  命中率: {$stats['hit_rate']}%\n";
-
-// 性能分析
-if ($stats['hit_rate'] > 80) {
-    echo "✅ 缓存效果优秀\n";
-} elseif ($stats['hit_rate'] > 60) {
-    echo "⚠️  缓存效果良好，可以优化\n";
-} else {
-    echo "❌ 缓存效果较差，需要检查策略\n";
+class CacheMonitor {
+    private static $stats = [
+        'hits' => 0,
+        'misses' => 0,
+        'sets' => 0,
+        'deletes' => 0,
+        'errors' => 0
+    ];
+    
+    public static function recordHit() {
+        self::$stats['hits']++;
+    }
+    
+    public static function recordMiss() {
+        self::$stats['misses']++;
+    }
+    
+    public static function getHitRate() {
+        $total = self::$stats['hits'] + self::$stats['misses'];
+        return $total > 0 ? self::$stats['hits'] / $total : 0;
+    }
+    
+    public static function getStats() {
+        return self::$stats;
+    }
 }
 ```
 
-## 最佳实践
-
-### 1. 合理设置 TTL
-
+### 性能分析
 ```php
-// 根据数据特性设置不同的过期时间
-$cache->getByTemplate('user', ['id' => $id], $callback, 3600);      // 用户信息：1小时
-$cache->getByTemplate('product', ['id' => $id], $callback, 7200);   // 商品信息：2小时
-$cache->getByTemplate('price', ['id' => $id], $callback, 600);      // 价格信息：10分钟
-```
-
-### 2. 使用批量操作
-
-```php
-// ✅ 推荐：批量获取
-$users = $cache->getMultiple($userKeys, $batchCallback);
-
-// ❌ 避免：循环单次获取
-foreach ($userIds as $id) {
-    $users[] = $cache->getByTemplate('user', ['id' => $id], $callback);
+class CacheHelper {
+    public static function getUser($userId) {
+        $startTime = microtime(true);
+        
+        $result = cache_kv_get(CacheTemplates::USER, ['id' => $userId], function() use ($userId) {
+            CacheMonitor::recordMiss();
+            return getUserFromDatabase($userId);
+        });
+        
+        if ($result !== null) {
+            CacheMonitor::recordHit();
+        }
+        
+        $duration = microtime(true) - $startTime;
+        
+        // 记录慢查询
+        if ($duration > 0.1) {
+            Log::warning("Slow cache operation for user {$userId}: {$duration}s");
+        }
+        
+        return $result;
+    }
 }
 ```
 
-### 3. 合理使用标签
-
-```php
-// 按业务维度设置标签
-$cache->setByTemplateWithTag('user', ['id' => $id], $data, ['users', "user_{$id}"]);
-$cache->setByTemplateWithTag('product', ['id' => $id], $data, ['products', "category_{$categoryId}"]);
-```
-
-### 4. 监控缓存效果
-
-```php
-$stats = $cache->getStats();
-if ($stats['hit_rate'] < 70) {
-    // 优化缓存策略
-    $this->optimizeCacheStrategy();
-}
-```
-
----
-
-**通过这四大核心功能，CacheKV 让缓存管理变得简单而高效！** 🚀
+这些核心功能构成了 CacheKV 的完整功能体系，为开发者提供了强大而灵活的缓存解决方案。
