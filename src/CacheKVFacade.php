@@ -28,6 +28,15 @@ class CacheKVFacade
     }
 
     /**
+     * 清除当前的 CacheKV 实例。
+     * 主要用于测试或重新配置场景。
+     */
+    public static function clearInstance()
+    {
+        self::$instance = null;
+    }
+
+    /**
      * 获取当前绑定的 CacheKV 实例。
      * 如果在调用此方法之前没有通过 `setInstance` 方法设置实例，则会抛出运行时异常。
      *

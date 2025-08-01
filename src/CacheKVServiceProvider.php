@@ -2,74 +2,32 @@
 
 namespace Asfop\CacheKV;
 
-use Asfop\CacheKV\Cache\CacheManager;
 use Asfop\CacheKV\Cache\KeyManager;
 
 class CacheKVServiceProvider
 {
     /**
-     * 初始化 CacheKV 并注册到门面
+     * 注册 CacheKV 服务并设置门面
+     * 
      * @param array|null $config 可选的配置覆盖
+     * @return CacheKV
      * @throws \Exception 当配置无效时抛出异常
      */
     public static function register($config = null)
     {
-        // 加载默认配置
-        $defaultConfig = require __DIR__ . '/Config/cachekv.php';
-
-        // 如果传入自定义配置，则合并
-        $finalConfig = $config ? array_merge($defaultConfig, $config) : $defaultConfig;
-
-        // 验证配置
-        if (!isset($finalConfig['default']) || !isset($finalConfig['stores'])) {
-            throw new \Exception('Invalid cache configuration: missing default or stores');
-        }
-
-        $storeName = $finalConfig['default'];
+        // 清除旧实例
+        CacheKVFacade::clearInstance();
         
-        if (!isset($finalConfig['stores'][$storeName])) {
-            throw new \Exception("Cache store '{$storeName}' not found in configuration");
+        // 如果没有传入配置，使用默认配置
+        if ($config === null) {
+            $config = self::getDefaultConfig();
         }
 
-        $storeConfig = $finalConfig['stores'][$storeName];
+        // 使用工厂模式设置配置并创建实例
+        CacheKVFactory::setDefaultConfig($config);
+        $cacheKV = CacheKVFactory::create();
         
-        if (!isset($storeConfig['driver'])) {
-            throw new \Exception("Driver not specified for cache store '{$storeName}'");
-        }
-
-        // 初始化驱动
-        $driverConfig = $storeConfig['driver'];
-        
-        if (is_object($driverConfig)) {
-            // 如果直接传入驱动实例
-            $driver = $driverConfig;
-        } elseif (is_string($driverConfig)) {
-            // 如果传入驱动类名
-            if (!class_exists($driverConfig)) {
-                throw new \Exception("Cache driver class '{$driverConfig}' not found");
-            }
-            $driver = new $driverConfig();
-        } else {
-            throw new \Exception("Invalid driver configuration for store '{$storeName}'");
-        }
-        
-        // 获取默认 TTL
-        $ttl = isset($finalConfig['default_ttl']) ? $finalConfig['default_ttl'] : 3600;
-        
-        // 如果配置了 TTL 抖动，应用随机浮动
-        if (isset($storeConfig['ttl_jitter'])) {
-            $jitter = $storeConfig['ttl_jitter'];
-            $ttl += rand(-$jitter, $jitter);
-        }
-
-        // 创建 KeyManager 实例（如果配置了）
-        $keyManager = null;
-        if (isset($finalConfig['key_manager'])) {
-            $keyManager = new KeyManager($finalConfig['key_manager']);
-        }
-
-        // 创建 CacheKV 实例并注册到门面
-        $cacheKV = new CacheKV($driver, $ttl, $keyManager);
+        // 注册到门面
         CacheKVFacade::setInstance($cacheKV);
         
         return $cacheKV;
@@ -77,6 +35,7 @@ class CacheKVServiceProvider
 
     /**
      * 获取默认配置
+     * 
      * @return array
      */
     public static function getDefaultConfig()
@@ -85,13 +44,81 @@ class CacheKVServiceProvider
     }
 
     /**
-     * 创建缓存管理器实例
-     * @param array|null $config 配置数组
-     * @return CacheManager
+     * 使用自定义配置注册服务
+     * 
+     * @param array $config 完整的配置数组
+     * @return CacheKV
      */
-    public static function createManager($config = null)
+    public static function registerWithConfig(array $config)
     {
-        $finalConfig = $config ?: self::getDefaultConfig();
-        return new CacheManager($finalConfig);
+        // 验证配置格式
+        self::validateConfig($config);
+        
+        return self::register($config);
+    }
+
+    /**
+     * 快速注册（使用 ArrayDriver）
+     * 
+     * @param string $appPrefix 应用前缀
+     * @param string $envPrefix 环境前缀
+     * @param array $templates 模板配置
+     * @param int $ttl 过期时间
+     * @return CacheKV
+     */
+    public static function quickRegister($appPrefix = 'app', $envPrefix = 'dev', $templates = [], $ttl = 3600)
+    {
+        $config = [
+            'default' => 'array',
+            'stores' => [
+                'array' => [
+                    'driver' => new \Asfop\CacheKV\Cache\Drivers\ArrayDriver(),
+                    'ttl' => $ttl
+                ]
+            ],
+            'key_manager' => [
+                'app_prefix' => $appPrefix,
+                'env_prefix' => $envPrefix,
+                'version' => 'v1',
+                'templates' => $templates
+            ]
+        ];
+
+        return self::register($config);
+    }
+
+    /**
+     * 验证配置格式
+     * 
+     * @param array $config
+     * @throws \Exception
+     */
+    private static function validateConfig(array $config)
+    {
+        if (!isset($config['default'])) {
+            throw new \Exception('配置中缺少 default 字段');
+        }
+
+        if (!isset($config['stores']) || !is_array($config['stores'])) {
+            throw new \Exception('配置中缺少 stores 字段或格式不正确');
+        }
+
+        $defaultStore = $config['default'];
+        if (!isset($config['stores'][$defaultStore])) {
+            throw new \Exception("默认存储 '{$defaultStore}' 在 stores 中未找到");
+        }
+
+        $storeConfig = $config['stores'][$defaultStore];
+        if (!isset($storeConfig['driver'])) {
+            throw new \Exception("存储 '{$defaultStore}' 缺少 driver 配置");
+        }
+    }
+
+    /**
+     * 重置服务（主要用于测试）
+     */
+    public static function reset()
+    {
+        CacheKVFacade::clearInstance();
     }
 }

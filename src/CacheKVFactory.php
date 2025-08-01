@@ -17,6 +17,8 @@ class CacheKVFactory
     public static function setDefaultConfig(array $config)
     {
         self::$defaultConfig = $config;
+        // 清除缓存的实例，强制重新创建
+        self::$instances = [];
     }
 
     /**
@@ -68,5 +70,22 @@ class CacheKVFactory
         $ttl = 3600;
 
         return new CacheKV($driver, $ttl, $keyManager);
+    }
+
+    /**
+     * 清除实例缓存（主要用于测试和重新配置）
+     */
+    public static function clearInstances()
+    {
+        self::$instances = [];
+    }
+
+    /**
+     * 重置工厂（清除配置和实例缓存）
+     */
+    public static function reset()
+    {
+        self::$defaultConfig = null;
+        self::$instances = [];
     }
 }
