@@ -252,21 +252,98 @@ $weather = cache_kv_get('api_weather', ['city' => $city], function() use ($city)
 ```
 
 ### 模板名称管理优化
-```php
-// 问题：硬编码模板名称 'user' 难以维护和修改
 
-// 1. 常量定义方式（推荐）
+#### 常量定义方式（推荐）
+```php
+// 1. 定义缓存模板常量
 class CacheTemplates {
     const USER = 'user_profile';
     const PRODUCT = 'product_info';
     const ORDER = 'order_detail';
+    const USER_PERMISSIONS = 'user_permissions';
 }
 
-// 使用常量，便于统一管理和修改
+// 2. 配置 CacheKV 时使用常量
+CacheKVFactory::setDefaultConfig([
+    'default' => 'array',
+    'stores' => [
+        'array' => [
+            'driver' => new \Asfop\CacheKV\Cache\Drivers\ArrayDriver(),
+            'ttl' => 3600
+        ]
+    ],
+    'key_manager' => [
+        'app_prefix' => 'myapp',
+        'env_prefix' => 'prod',
+        'version' => 'v1',
+        'templates' => [
+            // 使用常量作为键，模板作为值
+            CacheTemplates::USER => 'user:{id}',
+            CacheTemplates::PRODUCT => 'product:{id}',
+            CacheTemplates::ORDER => 'order:{id}',
+            CacheTemplates::USER_PERMISSIONS => 'user_perms:{user_id}',
+        ]
+    ]
+]);
+
+// 3. 使用常量进行缓存操作
+$cache = CacheKVFactory::store();
+
+// 用户信息缓存
 $user = $cache->getByTemplate(CacheTemplates::USER, ['id' => 123], function() {
     return getUserFromDatabase(123);
 });
 
+// 商品信息缓存
+$product = $cache->getByTemplate(CacheTemplates::PRODUCT, ['id' => 456], function() {
+    return getProductFromDatabase(456);
+});
+
+// 使用辅助函数（更简洁）
+$user = cache_kv_get(CacheTemplates::USER, ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+```
+
+#### 封装成辅助类（进一步简化）
+```php
+class CacheHelper {
+    private static $cache;
+    
+    private static function getCache() {
+        if (!self::$cache) {
+            self::$cache = CacheKVFactory::store();
+        }
+        return self::$cache;
+    }
+    
+    public static function getUser($userId) {
+        return self::getCache()->getByTemplate(CacheTemplates::USER, ['id' => $userId], function() use ($userId) {
+            return getUserFromDatabase($userId);
+        });
+    }
+    
+    public static function getProduct($productId) {
+        return self::getCache()->getByTemplate(CacheTemplates::PRODUCT, ['id' => $productId], function() use ($productId) {
+            return getProductFromDatabase($productId);
+        });
+    }
+    
+    public static function getUserPermissions($userId) {
+        return self::getCache()->getByTemplate(CacheTemplates::USER_PERMISSIONS, ['user_id' => $userId], function() use ($userId) {
+            return getUserPermissionsFromDatabase($userId);
+        });
+    }
+}
+
+// 使用封装的辅助类
+$user = CacheHelper::getUser(123);
+$product = CacheHelper::getProduct(456);
+$permissions = CacheHelper::getUserPermissions(123);
+```
+
+#### 其他方式
+```php
 // 2. 配置文件方式
 // config/cache_templates.php
 return [
@@ -289,20 +366,6 @@ enum CacheTemplate: string {
 }
 
 $user = $cache->getByTemplate(CacheTemplate::USER->value, ['id' => 123], function() {
-    return getUserFromDatabase(123);
-});
-
-// 4. 辅助函数封装
-function getUserCache($userId, $callback) {
-    return cache_kv_get(CacheTemplates::USER, ['id' => $userId], $callback);
-}
-
-function getProductCache($productId, $callback) {
-    return cache_kv_get(CacheTemplates::PRODUCT, ['id' => $productId], $callback);
-}
-
-// 使用封装函数
-$user = getUserCache(123, function() {
     return getUserFromDatabase(123);
 });
 ```
