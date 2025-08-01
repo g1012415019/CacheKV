@@ -218,51 +218,78 @@ $product = CacheKVFacade::getByTemplate('product', ['id' => 456], function() {
 
 ## 🌟 实际应用场景
 
-### 用户系统缓存
+### 用户信息缓存
 ```php
-class UserService
-{
-    public function getUser($userId)
-    {
-        return $this->cache->getByTemplate('user', ['id' => $userId], function() use ($userId) {
-            return $this->userRepository->find($userId);
-        });
-    }
-    
-    public function updateUser($userId, $data)
-    {
-        $this->userRepository->update($userId, $data);
-        $this->cache->clearTag("user_{$userId}");
-    }
-}
+// 获取用户信息，自动处理缓存逻辑
+$user = cache_kv_get('user', ['id' => $userId], function() use ($userId) {
+    return getUserFromDatabase($userId);
+});
+
+// 更新用户后清除相关缓存
+updateUserInDatabase($userId, $data);
+cache_kv_clear_tag('users'); // 清除所有用户相关缓存
 ```
 
-### 电商商品缓存
+### 商品信息批量缓存
 ```php
-class ProductService
-{
-    public function getProducts($productIds)
-    {
-        $productKeys = array_map(function($id) {
-            return $this->keyManager->make('product', ['id' => $id]);
-        }, $productIds);
-        
-        return $this->cache->getMultiple($productKeys, function($missingKeys) {
-            return $this->productRepository->findByKeys($missingKeys);
-        });
-    }
-}
+// 批量获取商品，自动优化：部分从缓存，部分从数据库
+$productIds = [1, 2, 3, 4, 5];
+$productKeys = array_map(function($id) use ($keyManager) {
+    return $keyManager->make('product', ['id' => $id]);
+}, $productIds);
+
+$products = $cache->getMultiple($productKeys, function($missingKeys) {
+    return getProductsFromDatabase($missingKeys);
+});
 ```
 
 ### API 响应缓存
 ```php
-class ApiService
-{
-    public function getWeather($city)
-    {
-        return $this->cache->getByTemplate('api_weather', ['city' => $city], function() use ($city) {
-            return $this->weatherApi->getCurrentWeather($city);
-        }, 1800); // 30分钟缓存
+// 缓存外部 API 响应，避免频繁调用
+$weather = cache_kv_get('api_weather', ['city' => $city], function() use ($city) {
+    return callWeatherAPI($city);
+}, 1800); // 30分钟缓存
+```
+
+### 缓存 Key 重命名迁移
+```php
+// 场景：需要将 'user:{id}' 改为 'user_info:{id}'
+
+// 1. 版本管理方式（推荐）
+CacheKVFactory::setDefaultConfig([
+    'key_manager' => [
+        'version' => 'v2', // 升级版本号，自动隔离新旧缓存
+        'templates' => [
+            'user' => 'user_info:{id}', // 新的模板
+        ]
+    ]
+]);
+
+// 2. 平滑迁移方式
+function migrateUserCache($userId) {
+    $oldKey = "myapp:prod:v1:user:{$userId}";
+    $newKey = "myapp:prod:v2:user_info:{$userId}";
+    
+    // 检查旧缓存是否存在
+    if ($cache->has($oldKey)) {
+        $data = $cache->get($oldKey);
+        $cache->set($newKey, $data); // 迁移到新 key
+        $cache->delete($oldKey);     // 删除旧 key
+    }
+}
+
+// 3. 批量迁移脚本
+function batchMigrateCache() {
+    $oldPattern = "myapp:prod:v1:user:*";
+    $oldKeys = $cache->keys($oldPattern);
+    
+    foreach ($oldKeys as $oldKey) {
+        $userId = extractUserIdFromKey($oldKey);
+        $newKey = $keyManager->make('user', ['id' => $userId]);
+        
+        $data = $cache->get($oldKey);
+        $cache->set($newKey, $data);
+        $cache->delete($oldKey);
     }
 }
 ```
