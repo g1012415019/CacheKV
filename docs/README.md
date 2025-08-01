@@ -14,12 +14,15 @@
 - [Key 管理](guide/key-management.md) - 统一的缓存键管理系统
 - [高级特性](guide/advanced-features.md) - 滑动过期、防穿透等
 - [性能优化](guide/performance.md) - 缓存策略和性能调优
+- [使用指南](guide/usage-guide.md) - 详细的使用教程
 
 ### 💡 实战案例
 - [用户信息缓存](examples/user-caching.md) - 用户系统缓存最佳实践
 - [商品数据缓存](examples/product-caching.md) - 电商商品缓存优化
 - [API 响应缓存](examples/api-caching.md) - 外部 API 调用缓存
-- [内容管理缓存](examples/content-caching.md) - CMS 系统缓存策略
+- [标签失效管理](examples/tag-invalidation.md) - 基于标签的缓存失效
+- [缓存穿透预防](examples/cache-penetration.md) - 缓存穿透预防策略
+- [滑动过期机制](examples/sliding-expiration.md) - 滑动过期详解
 
 ### 🔧 框架集成
 - [Laravel 集成](integrations/laravel.md) - 在 Laravel 中使用 CacheKV
@@ -28,13 +31,11 @@
 
 ### 🏗️ 高级主题
 - [架构设计](advanced/architecture.md) - 深入了解 CacheKV 架构
-- [扩展开发](advanced/extensions.md) - 开发自定义驱动和扩展
 - [故障排查](advanced/troubleshooting.md) - 常见问题和解决方案
 
 ### 📋 参考资料
 - [API 参考](reference/api.md) - 完整的 API 文档
 - [配置参考](reference/configuration.md) - 所有配置选项说明
-- [更新日志](reference/changelog.md) - 版本更新记录
 
 ## 🎯 推荐学习路径
 
@@ -60,14 +61,13 @@
 - **批量操作** → [核心功能](guide/core-features.md#批量操作)
 - **标签管理** → [核心功能](guide/core-features.md#标签管理)
 - **Key 管理** → [Key 管理指南](guide/key-management.md)
-- **防穿透** → [高级特性](guide/advanced-features.md#缓存穿透预防)
-- **滑动过期** → [高级特性](guide/advanced-features.md#滑动过期机制)
+- **防穿透** → [缓存穿透预防](examples/cache-penetration.md)
+- **滑动过期** → [滑动过期机制](examples/sliding-expiration.md)
 
 ### 按场景查找
 - **用户系统** → [用户信息缓存](examples/user-caching.md)
 - **电商平台** → [商品数据缓存](examples/product-caching.md)
 - **API 集成** → [API 响应缓存](examples/api-caching.md)
-- **内容管理** → [内容管理缓存](examples/content-caching.md)
 
 ### 按框架查找
 - **Laravel** → [Laravel 集成](integrations/laravel.md)

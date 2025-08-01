@@ -1,590 +1,422 @@
-# 核心功能
+# CacheKV 核心功能详解
 
-CacheKV 提供四大核心功能，让缓存管理变得简单高效。本指南将详细介绍每个功能的使用方法。
+## 概述
 
-## 🎯 功能概览
+CacheKV 的核心价值在于简化"若无则从数据源获取并回填缓存"这一常见模式。本文档详细介绍三大核心功能的实现原理和使用方法。
 
-| 功能 | 核心价值 | 使用场景 |
-|------|----------|----------|
-| **自动回填缓存** | 一行代码搞定缓存逻辑 | 所有缓存场景 |
-| **批量操作** | 避免 N+1 查询问题 | 列表页、批量查询 |
-| **标签管理** | 批量失效相关缓存 | 数据更新、缓存清理 |
-| **Key 管理** | 统一键命名规范 | 大型项目、团队协作 |
+## 1. 自动回填缓存（核心功能）
 
-## 1. 自动回填缓存
+### 功能原理
 
-### 核心理念
-
-**"若无则从数据源获取并回填缓存"** - 这是 CacheKV 最核心的功能。
-
-### 传统方式 vs CacheKV
-
-```php
-// ❌ 传统方式：手动管理缓存
-function getUser($userId) {
-    $cacheKey = "user:{$userId}";
-    
-    if ($cache->has($cacheKey)) {
-        return $cache->get($cacheKey);
-    }
-    
-    $user = getUserFromDatabase($userId);
-    if ($user) {
-        $cache->set($cacheKey, $user, 3600);
-    }
-    
-    return $user;
-}
-
-// ✅ CacheKV 方式：自动管理
-function getUser($userId) {
-    return $cache->getByTemplate('user', ['id' => $userId], function() use ($userId) {
-        return getUserFromDatabase($userId);
-    });
-}
-```
-
-### 基本用法
-
-```php
-// 获取用户信息
-$user = $cache->getByTemplate('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
-});
-
-// 获取商品信息
-$product = $cache->getByTemplate('product', ['id' => 456], function() {
-    return getProductFromDatabase(456);
-}, 1800); // 自定义30分钟过期时间
-```
-
-### 工作流程
-
-```
+传统的缓存使用需要开发者手动处理以下逻辑：
 1. 检查缓存是否存在
-   ├─ 存在 → 直接返回缓存数据
-   └─ 不存在 → 执行回调函数
-       ├─ 获取数据源数据
-       ├─ 自动写入缓存
-       └─ 返回数据
-```
+2. 如果不存在，从数据源获取数据
+3. 将数据写入缓存
+4. 返回数据
 
-### 高级特性
+CacheKV 将这个过程封装在一个方法中，通过回调函数实现自动回填。
 
-#### 空值缓存（防穿透）
+### 实现机制
 
-```php
-$user = $cache->getByTemplate('user', ['id' => 999999], function() {
-    return getUserFromDatabase(999999); // 返回 null
-});
-
-// 即使返回 null，也会被缓存，防止重复查询数据库
-```
-
-#### 自定义过期时间
+#### 单条数据获取
 
 ```php
-// 不同类型数据使用不同过期时间
-$userInfo = $cache->getByTemplate('user', ['id' => $id], $callback, 3600);    // 1小时
-$productPrice = $cache->getByTemplate('price', ['id' => $id], $callback, 600); // 10分钟
-$apiResponse = $cache->getByTemplate('api', ['key' => $key], $callback, 300);  // 5分钟
-```
-
-## 2. 批量操作
-
-### 解决的问题
-
-批量操作解决了经典的 **N+1 查询问题**：
-
-```php
-// ❌ N+1 查询问题
-$users = [];
-foreach ($userIds as $id) {
-    $users[] = $cache->getByTemplate('user', ['id' => $id], function() use ($id) {
-        return getUserFromDatabase($id); // 每个ID都查询一次数据库
-    });
-}
-
-// ✅ 批量操作解决方案
-$userKeys = array_map(function($id) use ($keyManager) {
-    return $keyManager->make('user', ['id' => $id]);
-}, $userIds);
-
-$users = $cache->getMultiple($userKeys, function($missingKeys) {
-    // 只查询缓存中不存在的用户
-    $missingIds = extractIdsFromKeys($missingKeys);
-    return getUsersFromDatabase($missingIds); // 一次批量查询
-});
-```
-
-### 基本用法
-
-```php
-// 1. 生成批量键
-$productIds = [1, 2, 3, 4, 5];
-$productKeys = array_map(function($id) use ($keyManager) {
-    return $keyManager->make('product', ['id' => $id]);
-}, $productIds);
-
-// 2. 批量获取
-$products = $cache->getMultiple($productKeys, function($missingKeys) use ($keyManager) {
-    // 解析出需要查询的ID
-    $missingIds = [];
-    foreach ($missingKeys as $key) {
-        $parsed = $keyManager->parse($key);
-        $missingIds[] = explode(':', $parsed['business_key'])[1];
-    }
-    
-    // 批量查询数据库
-    $dbProducts = getProductsFromDatabase($missingIds);
-    
-    // 重新组织数据，键为缓存键
-    $results = [];
-    foreach ($dbProducts as $product) {
-        $key = $keyManager->make('product', ['id' => $product['id']]);
-        $results[$key] = $product;
-    }
-    
-    return $results;
-});
-```
-
-### 性能对比
-
-| 场景 | 传统方式 | 批量操作 | 性能提升 |
-|------|----------|----------|----------|
-| 10个商品 | 10次数据库查询 | 1次批量查询 | 10x |
-| 100个用户 | 100次数据库查询 | 1次批量查询 | 100x |
-| 混合命中 | 部分查询+部分缓存 | 智能批量处理 | 5-50x |
-
-### 实际应用示例
-
-```php
-// 电商商品列表页
-class ProductListService
+public function get($key, $callback = null, $ttl = null)
 {
-    public function getProductList($productIds)
-    {
-        $productKeys = array_map(function($id) {
-            return $this->keyManager->make('product', ['id' => $id]);
-        }, $productIds);
-        
-        return $this->cache->getMultiple($productKeys, function($missingKeys) {
-            $missingIds = $this->extractProductIds($missingKeys);
-            return $this->productRepository->findByIds($missingIds);
-        });
+    $value = $this->driver->get($key);
+
+    // 缓存命中：直接返回并更新过期时间（滑动过期）
+    if ($value !== null) {
+        $this->driver->touch($key, $this->defaultTtl);
+        return $value;
     }
+
+    // 缓存未命中：执行回调并回填缓存
+    if ($callback !== null) {
+        $fetchedValue = call_user_func($callback);
+        // 即使是 null 也会被缓存，防止缓存穿透
+        $this->set($key, $fetchedValue, $ttl);
+        return $fetchedValue;
+    }
+
+    return null;
 }
 ```
 
-## 3. 标签管理
-
-### 解决的问题
-
-当数据更新时，需要清除所有相关的缓存项：
+#### 使用示例
 
 ```php
-// ❌ 手动管理相关缓存
-function updateUser($userId, $data) {
-    updateUserInDatabase($userId, $data);
+// 用户信息缓存
+$user = $cache->get('user:123', function() {
+    // 只在缓存未命中时执行
+    return $userService->findById(123);
+});
+
+// API 数据缓存
+$weather = $cache->get('weather:beijing', function() {
+    return $weatherAPI->getCurrentWeather('beijing');
+}, 1800); // 30分钟过期
+```
+
+#### 批量数据获取
+
+```php
+public function getMultiple($keys, $callback, $ttl = null)
+{
+    // 1. 批量获取现有缓存
+    $cachedValues = $this->driver->getMultiple($keys);
     
-    // 需要手动清除所有相关缓存
-    $cache->forget("user:{$userId}");
-    $cache->forget("user_profile:{$userId}");
-    $cache->forget("user_settings:{$userId}");
-    $cache->forget("user_permissions:{$userId}");
-    // ... 可能还有更多
-}
+    $missingKeys = [];
+    $results = [];
 
-// ✅ 标签管理解决方案
-function updateUser($userId, $data) {
-    updateUserInDatabase($userId, $data);
+    // 2. 分离命中和未命中的键
+    foreach ($keys as $originalKey) {
+        if (array_key_exists($originalKey, $cachedValues)) {
+            $results[$originalKey] = $cachedValues[$originalKey];
+        } else {
+            $missingKeys[] = $originalKey;
+        }
+    }
+
+    // 3. 批量获取缺失数据并回填
+    if (!empty($missingKeys)) {
+        $fetchedValues = call_user_func($callback, $missingKeys);
+        if (!empty($fetchedValues)) {
+            $this->driver->setMultiple($fetchedValues, $ttl ?? $this->defaultTtl);
+        }
+        $results = array_merge($results, $fetchedValues);
+    }
+
+    return $results;
+}
+```
+
+#### 批量使用示例
+
+```php
+$userIds = [1, 2, 3, 4, 5];
+
+$users = $cache->getMultiple($userIds, function($missingIds) {
+    // 只查询缓存中不存在的用户
+    return $userService->findByIds($missingIds);
+});
+
+// 结果：所有用户数据，部分来自缓存，部分来自数据库
+```
+
+### 优势分析
+
+1. **代码简化**：从 6-8 行代码减少到 1 行
+2. **防止穿透**：自动缓存 null 值
+3. **性能优化**：批量操作减少数据库查询
+4. **滑动过期**：访问时自动延长过期时间
+
+## 2. 基于标签的缓存失效管理
+
+### 功能原理
+
+在复杂应用中，经常需要批量清除相关的缓存项。传统方式需要维护缓存键的列表，而标签系统提供了更优雅的解决方案。
+
+### 实现机制
+
+#### 标签关联存储
+
+```php
+public function setWithTag($key, $value, $tags, $ttl = null)
+{
+    // 1. 先设置缓存数据
+    $result = $this->driver->set($key, $value, $ttl ?? $this->defaultTtl);
     
-    // 一行代码清除所有相关缓存
-    $cache->clearTag("user_{$userId}");
+    // 2. 建立标签关联
+    if ($result) {
+        $this->driver->tag($key, (array) $tags);
+    }
+    
+    return $result;
 }
 ```
 
-### 基本用法
-
-#### 设置带标签的缓存
+#### 标签清除机制
 
 ```php
-// 设置用户基本信息，标签：users, user_123
-$cache->setByTemplateWithTag('user', ['id' => 123], $userData, ['users', 'user_123']);
-
-// 设置用户资料，标签：users, user_123, profiles
-$cache->setByTemplateWithTag('user_profile', ['id' => 123], $profileData, 
-    ['users', 'user_123', 'profiles']);
-
-// 设置用户权限，标签：users, user_123, permissions
-$cache->setByTemplateWithTag('user_permissions', ['id' => 123], $permissionData,
-    ['users', 'user_123', 'permissions']);
+public function clearTag($tag)
+{
+    return $this->driver->clearTag($tag);
+}
 ```
 
-#### 批量清除缓存
+#### Redis 驱动中的标签实现
 
 ```php
-// 清除特定用户的所有缓存
-$cache->clearTag('user_123');
+public function tag($key, array $tags)
+{
+    $pipeline = $this->redis->pipeline();
 
-// 清除所有用户缓存
+    foreach ($tags as $tag) {
+        // 标签 -> 键的映射
+        $pipeline->sadd('tag_keys:' . $tag, $key);
+        // 键 -> 标签的映射（用于删除时清理）
+        $pipeline->sadd('tags:' . $key, $tag);
+    }
+    
+    $pipeline->exec();
+    return true;
+}
+
+public function clearTag($tag)
+{
+    // 1. 获取标签下的所有键
+    $keys = $this->redis->smembers('tag_keys:' . $tag);
+    
+    if (empty($keys)) {
+        return false;
+    }
+
+    // 2. 批量删除缓存项和标签关联
+    $pipeline = $this->redis->pipeline();
+    foreach ($keys as $key) {
+        $pipeline->del($key);                    // 删除缓存数据
+        $pipeline->srem('tags:' . $key, $tag);  // 清理键的标签引用
+    }
+    $pipeline->del('tag_keys:' . $tag);         // 删除标签键列表
+    $pipeline->exec();
+
+    return true;
+}
+```
+
+### 使用示例
+
+#### 用户相关缓存管理
+
+```php
+$userId = 123;
+
+// 设置用户相关的各种缓存，都打上用户标签
+$cache->setWithTag("user:profile:{$userId}", $profile, ['users', "user_{$userId}"]);
+$cache->setWithTag("user:settings:{$userId}", $settings, ['users', "user_{$userId}"]);
+$cache->setWithTag("user:permissions:{$userId}", $permissions, ['users', "user_{$userId}"]);
+$cache->setWithTag("user:posts:{$userId}", $posts, ['posts', "user_{$userId}"]);
+
+// 用户信息更新时，一次性清除所有相关缓存
+$cache->clearTag("user_{$userId}");
+
+// 或者清除所有用户缓存
 $cache->clearTag('users');
+```
 
-// 清除所有权限相关缓存
-$cache->clearTag('permissions');
+#### 内容管理系统示例
+
+```php
+// 文章缓存
+$cache->setWithTag("post:{$postId}", $post, ['posts', "category_{$categoryId}", "author_{$authorId}"]);
+
+// 分类页面缓存
+$cache->setWithTag("category:list:{$categoryId}", $posts, ["category_{$categoryId}"]);
+
+// 作者页面缓存  
+$cache->setWithTag("author:posts:{$authorId}", $posts, ["author_{$authorId}"]);
+
+// 当分类下有新文章时，清除分类相关缓存
+$cache->clearTag("category_{$categoryId}");
+
+// 当作者发布新文章时，清除作者相关缓存
+$cache->clearTag("author_{$authorId}");
 ```
 
 ### 标签设计最佳实践
 
-#### 层次化标签设计
+1. **层次化标签**：使用不同粒度的标签
+   ```php
+   ['global', 'users', 'user_123', 'user_profile']
+   ```
+
+2. **功能性标签**：按功能模块分组
+   ```php
+   ['posts', 'comments', 'categories', 'tags']
+   ```
+
+3. **时间性标签**：按时间维度分组
+   ```php
+   ['daily_stats', 'monthly_reports', 'yearly_summary']
+   ```
+
+## 3. 性能统计功能
+
+### 功能原理
+
+性能统计帮助开发者监控缓存效果，优化缓存策略。CacheKV 提供基础的命中率统计。
+
+### 实现机制
+
+#### 统计数据收集
 
 ```php
-// ✅ 推荐的标签设计
-$tags = [
-    'users',           // 全局用户标签
-    'user_123',        // 特定用户标签
-    'profiles',        // 功能模块标签
-    'vip_users'        // 业务分组标签
-];
+// 在驱动中维护统计计数器
+protected $hits = 0;
+protected $misses = 0;
 
-// ❌ 避免的设计
-$tags = [
-    'u',               // 太简短
-    'user_profile_123', // 太具体
-    'all_data'         // 太宽泛
-];
-```
-
-#### 标签命名规范
-
-```php
-$tagPatterns = [
-    // 实体类型
-    'users', 'products', 'orders', 'posts',
-    
-    // 特定实体
-    'user_{id}', 'product_{id}', 'order_{id}',
-    
-    // 功能模块
-    'profiles', 'settings', 'permissions', 'stats',
-    
-    // 业务分组
-    'vip_users', 'hot_products', 'featured_posts',
-    
-    // 时间维度
-    'date_{date}', 'month_{month}', 'year_{year}'
-];
-```
-
-### 实际应用场景
-
-#### 用户信息更新
-
-```php
-class UserService
+public function get($key)
 {
-    public function updateUser($userId, $data)
-    {
-        // 1. 更新数据库
-        $this->userRepository->update($userId, $data);
-        
-        // 2. 清除用户相关的所有缓存
-        $this->cache->clearTag("user_{$userId}");
-        
-        // 3. 如果是权限变更，还需要清除权限相关缓存
-        if (isset($data['role'])) {
-            $this->cache->clearTag('permissions');
-        }
+    $value = $this->redis->get($key);
+
+    if ($value === false) {
+        $this->misses++;  // 记录未命中
+        return null;
     }
+
+    $this->hits++;        // 记录命中
+    return unserialize($value);
 }
 ```
 
-#### 内容发布系统
+#### 统计信息获取
 
 ```php
-class PostService
+public function getStats()
 {
-    public function publishPost($postId)
-    {
-        $post = $this->getPost($postId);
-        
-        // 更新发布状态
-        $this->postRepository->publish($postId);
-        
-        // 清除相关缓存
-        $this->cache->clearTag("post_{$postId}");           // 文章本身
-        $this->cache->clearTag("user_{$post['user_id']}");  // 作者相关
-        $this->cache->clearTag("category_{$post['category_id']}"); // 分类相关
-        $this->cache->clearTag('featured_posts');           // 推荐文章
-        $this->cache->clearTag('recent_posts');             // 最新文章
-    }
+    $total = $this->hits + $this->misses;
+    $hitRate = $total > 0 ? ($this->hits / $total) * 100 : 0;
+
+    return [
+        'hits' => $this->hits,
+        'misses' => $this->misses,
+        'hit_rate' => round($hitRate, 2)
+    ];
 }
 ```
 
-## 4. Key 管理
+### 使用示例
 
-### 解决的问题
-
-统一的缓存键命名和管理：
+#### 基础统计监控
 
 ```php
-// ❌ 混乱的键命名
-$cache->set('user_123', $data);
-$cache->set('u:456', $data);
-$cache->set('user_info_789', $data);
-$cache->set('myapp_prod_user_101112', $data);
+// 执行一些缓存操作
+$cache->get('user:1');
+$cache->get('user:2');
+$cache->get('user:3', function() { return ['name' => 'New User']; });
 
-// ✅ 统一的键管理
-$cache->setByTemplate('user', ['id' => 123], $data);
-$cache->setByTemplate('user', ['id' => 456], $data);
-$cache->setByTemplate('user', ['id' => 789], $data);
-$cache->setByTemplate('user', ['id' => 101112], $data);
-```
-
-### 键命名规范
-
-```
-{app_prefix}:{env_prefix}:{version}:{business_key}
-```
-
-**示例：**
-- `myapp:prod:v1:user:123` - 生产环境用户数据
-- `myapp:dev:v1:product:456` - 开发环境商品数据
-- `ecommerce:test:v2:order:ORD001` - 测试环境订单数据
-
-### 基本配置
-
-```php
-$keyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1',
-    'templates' => [
-        // 用户相关
-        'user' => 'user:{id}',
-        'user_profile' => 'user:profile:{id}',
-        'user_settings' => 'user:settings:{id}',
-        
-        // 商品相关
-        'product' => 'product:{id}',
-        'product_detail' => 'product:detail:{id}',
-        'product_price' => 'product:price:{id}',
-        
-        // 订单相关
-        'order' => 'order:{id}',
-        'order_items' => 'order:items:{order_id}',
-    ]
-]);
-```
-
-### 核心功能
-
-#### 键生成
-
-```php
-// 基本键生成
-$userKey = $keyManager->make('user', ['id' => 123]);
-// 结果: myapp:prod:v1:user:123
-
-// 复杂参数键生成
-$listKey = $keyManager->make('category_products', [
-    'id' => 'electronics',
-    'page' => 1
-]);
-// 结果: myapp:prod:v1:category:products:electronics:page:1
-```
-
-#### 键解析
-
-```php
-$key = 'myapp:prod:v1:user:settings:789';
-$parsed = $keyManager->parse($key);
-
+// 获取统计信息
+$stats = $cache->getStats();
 /*
-结果:
 [
-    'full_key' => 'myapp:prod:v1:user:settings:789',
-    'has_prefix' => true,
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1',
-    'business_key' => 'user:settings:789'
+    'hits' => 2,
+    'misses' => 1,
+    'hit_rate' => 66.67
 ]
 */
 ```
 
-#### 模式匹配
+#### 性能监控和优化
 
 ```php
-// 生成模式匹配键（用于批量操作）
-$userPattern = $keyManager->pattern('user', ['id' => '*']);
-// 结果: myapp:prod:v1:user:*
-
-$categoryPattern = $keyManager->pattern('category_products', [
-    'id' => 'electronics',
-    'page' => '*'
-]);
-// 结果: myapp:prod:v1:category:products:electronics:page:*
-```
-
-### 环境隔离
-
-```php
-// 开发环境
-$devKeyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'dev',
-    'version' => 'v1'
-]);
-
-// 生产环境
-$prodKeyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1'
-]);
-
-// 同样的模板，不同的环境前缀
-$devKey = $devKeyManager->make('user', ['id' => 123]);   // myapp:dev:v1:user:123
-$prodKey = $prodKeyManager->make('user', ['id' => 123]); // myapp:prod:v1:user:123
-```
-
-### 版本管理
-
-```php
-// 当需要更新缓存结构时，增加版本号
-$v1KeyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1'
-]);
-
-$v2KeyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v2'  // 新版本
-]);
-
-// 新旧版本的缓存不会冲突
-$v1Key = $v1KeyManager->make('user', ['id' => 123]); // myapp:prod:v1:user:123
-$v2Key = $v2KeyManager->make('user', ['id' => 123]); // myapp:prod:v2:user:123
-```
-
-## 功能组合使用
-
-### 完整的业务场景
-
-```php
-class EcommerceService
+class CacheMonitor 
 {
     private $cache;
-    private $keyManager;
     
-    public function __construct($cache, $keyManager)
+    public function __construct($cache) 
     {
         $this->cache = $cache;
-        $this->keyManager = $keyManager;
     }
     
-    // 1. 自动回填 + Key管理
-    public function getProduct($productId)
+    public function checkPerformance() 
     {
-        return $this->cache->getByTemplate('product', ['id' => $productId], function() use ($productId) {
-            return $this->productRepository->find($productId);
-        });
-    }
-    
-    // 2. 批量操作 + Key管理
-    public function getProducts($productIds)
-    {
-        $productKeys = array_map(function($id) {
-            return $this->keyManager->make('product', ['id' => $id]);
-        }, $productIds);
+        $stats = $this->cache->getStats();
         
-        return $this->cache->getMultiple($productKeys, function($missingKeys) {
-            $missingIds = $this->extractProductIds($missingKeys);
-            return $this->productRepository->findByIds($missingIds);
-        });
-    }
-    
-    // 3. 标签管理 + Key管理
-    public function updateProduct($productId, $data)
-    {
-        // 更新数据库
-        $this->productRepository->update($productId, $data);
-        
-        // 清除相关缓存
-        $this->cache->clearTag("product_{$productId}");
-        
-        // 如果分类发生变化，清除分类缓存
-        if (isset($data['category_id'])) {
-            $this->cache->clearTag("category_{$data['category_id']}");
+        if ($stats['hit_rate'] < 70) {
+            // 命中率过低，需要优化
+            $this->logWarning("Cache hit rate is low: {$stats['hit_rate']}%");
+            $this->suggestOptimizations($stats);
         }
+        
+        return $stats;
     }
     
-    // 4. 四大功能综合使用
-    public function getProductsWithCache($categoryId, $page = 1)
+    private function suggestOptimizations($stats) 
     {
-        // 使用Key管理生成列表键
-        return $this->cache->getByTemplate('category_products', [
-            'id' => $categoryId,
-            'page' => $page
-        ], function() use ($categoryId, $page) {
-            // 自动回填：从数据库获取数据
-            $products = $this->productRepository->getByCategory($categoryId, $page);
-            
-            // 设置标签：便于后续批量清理
-            $this->cache->setByTemplateWithTag('category_products', [
-                'id' => $categoryId,
-                'page' => $page
-            ], $products, ["category_{$categoryId}", 'product_lists']);
-            
-            return $products;
-        });
+        $suggestions = [];
+        
+        if ($stats['hit_rate'] < 50) {
+            $suggestions[] = "Consider increasing TTL values";
+            $suggestions[] = "Review cache key patterns";
+        }
+        
+        if ($stats['misses'] > $stats['hits']) {
+            $suggestions[] = "Consider preloading frequently accessed data";
+        }
+        
+        return $suggestions;
     }
 }
 ```
 
-## 性能监控
-
-### 缓存统计
+#### 定期统计报告
 
 ```php
-$stats = $cache->getStats();
-
-echo "缓存性能统计:\n";
-echo "  命中次数: {$stats['hits']}\n";
-echo "  未命中次数: {$stats['misses']}\n";
-echo "  命中率: {$stats['hit_rate']}%\n";
-
-// 性能分析
-if ($stats['hit_rate'] > 80) {
-    echo "✅ 缓存效果优秀\n";
-} elseif ($stats['hit_rate'] > 60) {
-    echo "⚠️  缓存效果良好，可以优化\n";
-} else {
-    echo "❌ 缓存效果较差，需要检查策略\n";
+class CacheReporter 
+{
+    public function generateDailyReport($cache) 
+    {
+        $stats = $cache->getStats();
+        
+        $report = [
+            'date' => date('Y-m-d'),
+            'total_requests' => $stats['hits'] + $stats['misses'],
+            'cache_hits' => $stats['hits'],
+            'cache_misses' => $stats['misses'],
+            'hit_rate' => $stats['hit_rate'],
+            'performance_grade' => $this->getPerformanceGrade($stats['hit_rate'])
+        ];
+        
+        // 保存报告或发送通知
+        $this->saveReport($report);
+        
+        return $report;
+    }
+    
+    private function getPerformanceGrade($hitRate) 
+    {
+        if ($hitRate >= 90) return 'A';
+        if ($hitRate >= 80) return 'B';
+        if ($hitRate >= 70) return 'C';
+        if ($hitRate >= 60) return 'D';
+        return 'F';
+    }
 }
 ```
 
-### 功能使用建议
+## 核心功能协同工作
 
-| 功能 | 适用场景 | 性能提升 | 复杂度 |
-|------|----------|----------|--------|
-| 自动回填 | 所有缓存场景 | 10-100x | 低 |
-| 批量操作 | 列表页、批量查询 | 10-1000x | 中 |
-| 标签管理 | 数据更新频繁 | 维护性提升 | 中 |
-| Key管理 | 大型项目 | 可维护性提升 | 低 |
+### 完整使用示例
 
-## 下一步
+```php
+// 1. 初始化缓存
+$cache = new CacheKV(new RedisDriver(), 3600);
 
-掌握了核心功能后，建议您：
+// 2. 使用自动回填功能获取用户数据
+$user = $cache->get("user:{$userId}", function() use ($userId) {
+    return $userService->findById($userId);
+});
 
-1. 学习 [Key 管理详细指南](key-management.md)
-2. 查看 [实战案例](../examples/) 了解实际应用
-3. 阅读 [高级特性](advanced-features.md) 了解更多功能
+// 3. 设置带标签的相关缓存
+$cache->setWithTag("user:posts:{$userId}", $userPosts, ["user_{$userId}", 'posts']);
+$cache->setWithTag("user:profile:{$userId}", $userProfile, ["user_{$userId}", 'profiles']);
 
----
+// 4. 批量获取用户的朋友信息
+$friendIds = $user['friend_ids'];
+$friends = $cache->getMultiple($friendIds, function($missingIds) {
+    return $userService->findByIds($missingIds);
+});
 
-**现在您已经掌握了 CacheKV 的四大核心功能！** 🚀
+// 5. 用户更新时清除相关缓存
+$cache->clearTag("user_{$userId}");
+
+// 6. 监控缓存性能
+$stats = $cache->getStats();
+if ($stats['hit_rate'] < 80) {
+    // 记录性能警告
+    error_log("Cache performance warning: hit rate = {$stats['hit_rate']}%");
+}
+```
+
+这三大核心功能相互配合，为开发者提供了完整的缓存解决方案，大大简化了缓存的使用复杂度。
