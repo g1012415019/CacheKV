@@ -36,26 +36,50 @@ composer require asfop/cache-kv
 <?php
 require_once 'vendor/autoload.php';
 
-use Asfop\CacheKV\CacheKV;
-use Asfop\CacheKV\Cache\KeyManager;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
+use Asfop\CacheKV\CacheKVFactory;
 
-// 1. 配置键管理器
-$keyManager = new KeyManager([
-    'app_prefix' => 'myapp',
-    'env_prefix' => 'prod',
-    'version' => 'v1',
+// 1. 一次性配置（通常在应用启动时）
+CacheKVFactory::setDefaultConfig([
+    'default' => 'array',
+    'stores' => [
+        'array' => [
+            'driver' => new \Asfop\CacheKV\Cache\Drivers\ArrayDriver(),
+            'ttl' => 3600
+        ]
+    ],
+    'key_manager' => [
+        'app_prefix' => 'myapp',
+        'env_prefix' => 'prod',
+        'version' => 'v1',
+        'templates' => [
+            'user' => 'user:{id}',
+            'product' => 'product:{id}',
+            'order' => 'order:{id}',
+        ]
+    ]
 ]);
 
-// 2. 创建缓存实例
-$cache = new CacheKV(new ArrayDriver(), 3600, $keyManager);
-
-// 3. 使用 - 自动回填缓存
-$user = $cache->getByTemplate('user', ['id' => 123], function() {
+// 2. 在任何地方直接使用辅助函数
+$user = cache_kv_get('user', ['id' => 123], function() {
     return ['id' => 123, 'name' => 'John Doe', 'email' => 'john@example.com'];
 });
 
 echo "用户信息: " . json_encode($user);
+```
+
+### 快速创建（适合简单场景）
+
+```php
+// 一行代码创建独立实例
+$cache = cache_kv_quick('myapp', 'dev', [
+    'user' => 'user:{id}',
+    'product' => 'product:{id}',
+]);
+
+// 直接使用
+$user = $cache->getByTemplate('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
 ```
 
 ## 🚀 核心功能

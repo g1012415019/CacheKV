@@ -2,193 +2,260 @@
 
 require_once 'vendor/autoload.php';
 
-use Asfop\CacheKV\CacheKV;
+use Asfop\CacheKV\CacheKVFactory;
 use Asfop\CacheKV\CacheKVFacade;
 use Asfop\CacheKV\CacheKVServiceProvider;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use Asfop\CacheKV\Cache\KeyManager;
 
 echo "=== CacheKV 完整功能示例 ===\n\n";
 
-// 配置 KeyManager
-$keyConfig = [
-    'app_prefix' => 'demo',
-    'env_prefix' => 'dev',
-    'version' => 'v1',
-    'templates' => [
-        // 自定义业务模板
-        'order' => 'order:{id}',
-        'cart' => 'cart:{user_id}',
-        'product_reviews' => 'product:reviews:{id}:page:{page}',
-    ]
-];
-
-$keyManager = new KeyManager($keyConfig);
-
-echo "1. 直接使用 CacheKV + KeyManager\n";
+// ========================================
+// 方案1：使用辅助函数（最简单）
+// ========================================
+echo "1. 使用辅助函数（推荐）\n";
 echo "=================================\n";
 
-$driver = new ArrayDriver();
-$cache = new CacheKV($driver, 3600, $keyManager);
-
-// 使用模板方法获取用户信息
-$user = $cache->getByTemplate('user', ['id' => 1], function() {
-    echo "从数据库获取用户信息...\n";
-    return ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com', 'age' => 30];
-});
-echo "用户信息: " . json_encode($user) . "\n";
-
-// 使用模板方法获取产品信息
-$product = $cache->getByTemplate('product', ['id' => 1], function() {
-    echo "从数据库获取产品信息...\n";
-    return ['id' => 1, 'name' => 'iPhone 15 Pro', 'price' => 999.99, 'category' => 'Electronics'];
-});
-echo "产品信息: " . json_encode($product) . "\n";
-
-// 再次获取（应该从缓存获取）
-$product2 = $cache->getByTemplate('product', ['id' => 1], function() {
-    echo "这不应该被执行（缓存命中）\n";
-    return null;
-});
-echo "产品信息（缓存）: " . json_encode($product2) . "\n\n";
-
-echo "2. 标签管理示例\n";
-echo "===============\n";
-
-// 使用模板方法设置带标签的缓存
-$cache->setByTemplateWithTag('user', ['id' => 1], $user, ['users', 'vip_users']);
-$cache->setByTemplateWithTag('user', ['id' => 2], [
-    'id' => 2, 
-    'name' => 'Jane Smith', 
-    'email' => 'jane@example.com'
-], ['users', 'normal_users']);
-
-echo "设置了带标签的用户缓存\n";
-
-// 验证缓存存在
-echo "用户1缓存存在: " . ($cache->hasByTemplate('user', ['id' => 1]) ? 'Yes' : 'No') . "\n";
-echo "用户2缓存存在: " . ($cache->hasByTemplate('user', ['id' => 2]) ? 'Yes' : 'No') . "\n";
-
-// 清除标签
-echo "清除 'users' 标签下的所有缓存...\n";
-$cache->clearTag('users');
-
-echo "清除后用户1缓存存在: " . ($cache->hasByTemplate('user', ['id' => 1]) ? 'Yes' : 'No') . "\n";
-echo "清除后用户2缓存存在: " . ($cache->hasByTemplate('user', ['id' => 2]) ? 'Yes' : 'No') . "\n\n";
-
-echo "3. 批量操作示例\n";
-echo "===============\n";
-
-// 批量获取用户数据
-$userIds = [101, 102, 103];
-$userKeys = array_map(function($id) use ($keyManager) {
-    return $keyManager->make('user', ['id' => $id]);
-}, $userIds);
-
-$users = $cache->getMultiple($userKeys, function($missingKeys) use ($keyManager) {
-    echo "批量获取缺失的用户: " . implode(', ', $missingKeys) . "\n";
-    
-    $userData = [];
-    foreach ($missingKeys as $key) {
-        // 从键中解析用户ID
-        $parsed = $keyManager->parse($key);
-        $userId = explode(':', $parsed['business_key'])[1];
-        
-        $userData[$key] = [
-            'id' => $userId,
-            'name' => "User {$userId}",
-            'email' => "user{$userId}@example.com",
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-    }
-    return $userData;
-});
-
-echo "批量获取结果: " . count($users) . " 个用户\n\n";
-
-echo "4. 使用门面模式\n";
-echo "==============\n";
-
-// 配置服务提供者
-$serviceConfig = [
+// 一次性配置
+CacheKVFactory::setDefaultConfig([
     'default' => 'array',
     'stores' => [
         'array' => [
-            'driver' => ArrayDriver::class
+            'driver' => new \Asfop\CacheKV\Cache\Drivers\ArrayDriver(),
+            'ttl' => 3600
         ]
     ],
-    'default_ttl' => 1800,
-    'key_manager' => $keyConfig
-];
+    'key_manager' => [
+        'app_prefix' => 'demo',
+        'env_prefix' => 'dev',
+        'version' => 'v1',
+        'templates' => [
+            'user' => 'user:{id}',
+            'order' => 'order:{id}',
+            'cart' => 'cart:{user_id}',
+            'product_reviews' => 'product:reviews:{id}:page:{page}',
+        ]
+    ]
+]);
 
-CacheKVServiceProvider::register($serviceConfig);
+// 直接使用辅助函数
+$user = cache_kv_get('user', ['id' => 123], function() {
+    echo "  -> 从数据库获取用户 123\n";
+    return ['id' => 123, 'name' => 'John Doe', 'email' => 'john@example.com'];
+});
 
-// 使用门面的模板方法
-$order = CacheKVFacade::getByTemplate('order', ['id' => 'ORD001'], function() {
-    echo "从数据库获取订单信息...\n";
+$order = cache_kv_get('order', ['id' => 456], function() {
+    echo "  -> 从数据库获取订单 456\n";
+    return ['id' => 456, 'user_id' => 123, 'total' => 299.99, 'status' => 'completed'];
+});
+
+echo "用户信息: " . json_encode($user, JSON_UNESCAPED_UNICODE) . "\n";
+echo "订单信息: " . json_encode($order, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+// ========================================
+// 方案2：快速创建独立实例
+// ========================================
+echo "2. 快速创建独立实例\n";
+echo "=================================\n";
+
+$cache = cache_kv_quick('shop', 'prod', [
+    'product' => 'product:{id}',
+    'category' => 'category:{id}',
+    'brand' => 'brand:{id}',
+]);
+
+$product = $cache->getByTemplate('product', ['id' => 789], function() {
+    echo "  -> 从API获取产品 789\n";
     return [
-        'id' => 'ORD001',
-        'user_id' => 1,
-        'total' => 999.99,
-        'status' => 'completed',
-        'created_at' => '2024-01-01 10:00:00'
+        'id' => 789,
+        'name' => 'iPhone 15 Pro',
+        'price' => 999,
+        'category' => 'Electronics',
+        'brand' => 'Apple'
     ];
 });
-echo "订单信息: " . json_encode($order) . "\n";
 
-// 使用门面获取购物车
-$cart = CacheKVFacade::getByTemplate('cart', ['user_id' => 1], function() {
-    echo "从数据库获取购物车信息...\n";
+echo "产品信息: " . json_encode($product, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+// ========================================
+// 方案3：门面模式
+// ========================================
+echo "3. 门面模式\n";
+echo "=================================\n";
+
+// 注册服务提供者
+CacheKVServiceProvider::register([
+    'default' => 'array',
+    'stores' => [
+        'array' => [
+            'driver' => new \Asfop\CacheKV\Cache\Drivers\ArrayDriver(),
+            'ttl' => 1800
+        ]
+    ],
+    'key_manager' => [
+        'app_prefix' => 'webapp',
+        'env_prefix' => 'prod',
+        'version' => 'v1',
+        'templates' => [
+            'post' => 'post:{id}',
+            'comment' => 'comment:{id}',
+            'tag' => 'tag:{name}',
+        ]
+    ]
+]);
+
+// 使用门面
+$post = CacheKVFacade::getByTemplate('post', ['id' => 100], function() {
+    echo "  -> 通过门面获取文章 100\n";
     return [
-        'user_id' => 1,
-        'items' => [
-            ['product_id' => 1, 'quantity' => 2, 'price' => 999.99],
-            ['product_id' => 2, 'quantity' => 1, 'price' => 599.99]
-        ],
-        'total' => 2599.97,
-        'updated_at' => date('Y-m-d H:i:s')
+        'id' => 100,
+        'title' => 'CacheKV 使用指南',
+        'content' => '这是一篇关于 CacheKV 的文章...',
+        'author' => 'Developer',
+        'created_at' => date('Y-m-d H:i:s')
     ];
 });
-echo "购物车信息: " . json_encode($cart) . "\n\n";
 
-echo "5. 键管理和解析\n";
-echo "===============\n";
+echo "文章信息: " . json_encode($post, JSON_UNESCAPED_UNICODE) . "\n\n";
 
-// 显示生成的键
-$generatedKeys = [
-    CacheKVFacade::makeKey('user', ['id' => 1]),
-    CacheKVFacade::makeKey('product', ['id' => 1]),
-    CacheKVFacade::makeKey('order', ['id' => 'ORD001']),
-    CacheKVFacade::makeKey('cart', ['user_id' => 1])
-];
+// ========================================
+// 方案4：批量操作
+// ========================================
+echo "4. 批量操作\n";
+echo "=================================\n";
 
-echo "生成的缓存键:\n";
-foreach ($generatedKeys as $key) {
-    echo "  - {$key}\n";
+// 批量获取用户
+$userIds = [1, 2, 3, 4, 5];
+$userKeys = array_map(function($id) {
+    return cache_kv()->getKeyManager()->make('user', ['id' => $id]);
+}, $userIds);
+
+$users = cache_kv()->getMultiple($userKeys, function($missingKeys) {
+    echo "  -> 批量获取缺失的用户数据\n";
+    $result = [];
+    foreach ($missingKeys as $key) {
+        if (preg_match('/user:(\d+)/', $key, $matches)) {
+            $id = $matches[1];
+            $result[$key] = [
+                'id' => $id,
+                'name' => "User {$id}",
+                'email' => "user{$id}@example.com"
+            ];
+        }
+    }
+    return $result;
+});
+
+echo "批量用户数量: " . count($users) . "\n\n";
+
+// ========================================
+// 方案5：标签管理
+// ========================================
+echo "5. 标签管理\n";
+echo "=================================\n";
+
+$cache = cache_kv();
+
+// 设置带标签的缓存
+$cache->setByTemplateWithTag('user', ['id' => 999], [
+    'id' => 999,
+    'name' => 'Tagged User',
+    'role' => 'admin'
+], ['users', 'admins']);
+
+echo "设置带标签的用户缓存\n";
+
+// 获取缓存
+$taggedUser = $cache->getByTemplate('user', ['id' => 999], function() {
+    echo "  -> 这行不应该出现（应该从缓存获取）\n";
+    return [];
+});
+
+echo "带标签用户: " . json_encode($taggedUser, JSON_UNESCAPED_UNICODE) . "\n";
+
+// 清除标签
+$cache->clearTag('users');
+echo "清除 'users' 标签的所有缓存\n\n";
+
+// ========================================
+// 方案6：实际业务场景
+// ========================================
+echo "6. 实际业务场景\n";
+echo "=================================\n";
+
+// 电商服务类
+class EcommerceService {
+    public function getUserProfile($userId) {
+        return cache_kv_get('user', ['id' => $userId], function() use ($userId) {
+            echo "  -> 从数据库获取用户档案 {$userId}\n";
+            return [
+                'id' => $userId,
+                'name' => "User {$userId}",
+                'email' => "user{$userId}@shop.com",
+                'level' => 'VIP',
+                'points' => rand(100, 1000)
+            ];
+        });
+    }
+    
+    public function getUserCart($userId) {
+        return cache_kv_get('cart', ['user_id' => $userId], function() use ($userId) {
+            echo "  -> 从数据库获取购物车 {$userId}\n";
+            return [
+                'user_id' => $userId,
+                'items' => [
+                    ['product_id' => 1, 'name' => 'Product A', 'quantity' => 2, 'price' => 99.99],
+                    ['product_id' => 2, 'name' => 'Product B', 'quantity' => 1, 'price' => 199.99],
+                ],
+                'total' => 399.97
+            ];
+        });
+    }
+    
+    public function getProductReviews($productId, $page = 1) {
+        return cache_kv_get('product_reviews', ['id' => $productId, 'page' => $page], function() use ($productId, $page) {
+            echo "  -> 从数据库获取产品评论 {$productId} 第{$page}页\n";
+            return [
+                'product_id' => $productId,
+                'page' => $page,
+                'reviews' => [
+                    ['rating' => 5, 'comment' => 'Excellent!', 'user' => 'Customer A'],
+                    ['rating' => 4, 'comment' => 'Good quality', 'user' => 'Customer B'],
+                    ['rating' => 5, 'comment' => 'Highly recommend', 'user' => 'Customer C'],
+                ]
+            ];
+        });
+    }
+    
+    public function updateUserProfile($userId, $data) {
+        echo "  -> 更新用户档案 {$userId}\n";
+        // 更新数据库后清除缓存
+        cache_kv_forget('user', ['id' => $userId]);
+        echo "  -> 清除用户缓存\n";
+    }
 }
 
-// 键解析示例
-$sampleKey = CacheKVFacade::makeKey('user_profile', ['id' => 123]);
-$parsed = CacheKVFacade::getInstance()->getKeyManager()->parse($sampleKey);
+// 使用业务服务
+$ecommerce = new EcommerceService();
 
-echo "\n键解析示例:\n";
-echo "  原始键: {$sampleKey}\n";
-echo "  应用前缀: {$parsed['app_prefix']}\n";
-echo "  环境前缀: {$parsed['env_prefix']}\n";
-echo "  版本: {$parsed['version']}\n";
-echo "  业务键: {$parsed['business_key']}\n\n";
+$userProfile = $ecommerce->getUserProfile(888);
+echo "用户档案: " . json_encode($userProfile, JSON_UNESCAPED_UNICODE) . "\n";
 
-echo "6. 缓存统计\n";
-echo "===========\n";
+$userCart = $ecommerce->getUserCart(888);
+echo "用户购物车: " . json_encode($userCart, JSON_UNESCAPED_UNICODE) . "\n";
 
-$stats = CacheKVFacade::getStats();
-echo "缓存统计信息:\n";
-echo "  命中次数: {$stats['hits']}\n";
-echo "  未命中次数: {$stats['misses']}\n";
-echo "  命中率: {$stats['hit_rate']}%\n\n";
+$reviews = $ecommerce->getProductReviews(555, 1);
+echo "产品评论: " . json_encode($reviews, JSON_UNESCAPED_UNICODE) . "\n";
 
-echo "=== 示例完成 ===\n";
-echo "\n💡 提示:\n";
-echo "  - 查看 examples/ 目录了解更多专项示例\n";
-echo "  - 查看 docs/ 目录了解详细文档\n";
-echo "  - 运行 test-project-integration.php 进行完整测试\n";
+// 更新用户档案（会清除缓存）
+$ecommerce->updateUserProfile(888, ['name' => 'Updated User']);
+
+// 再次获取（会重新从数据库获取）
+$updatedProfile = $ecommerce->getUserProfile(888);
+echo "更新后档案: " . json_encode($updatedProfile, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+echo "=== 完整功能示例完成 ===\n";
+echo "🎯 使用建议：\n";
+echo "  ✅ 简单场景：使用 cache_kv_get() 辅助函数\n";
+echo "  ✅ 独立模块：使用 cache_kv_quick() 快速创建\n";
+echo "  ✅ 大型项目：使用工厂模式 + 业务服务类\n";
+echo "  ✅ 企业应用：使用门面模式 + 依赖注入\n";
+echo "  ✅ 复杂业务：结合标签管理 + 批量操作\n";

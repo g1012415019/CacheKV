@@ -1,123 +1,128 @@
-# CacheKV 使用示例
+# CacheKV 示例文件说明
 
-本目录包含了 CacheKV 的各种使用示例，帮助您快速上手和深入了解 CacheKV 的功能。
+本目录包含了 CacheKV 的各种使用示例，所有示例都已更新为使用新的简化模式。
 
-## 示例列表
+## 📁 文件说明
 
-### 🔑 Key 管理示例
+### 🎯 推荐入门顺序
 
-#### 1. [key-management-quickstart.php](key-management-quickstart.php)
-**快速入门示例** - 5分钟了解 Key 管理的基本用法
+1. **[simplified-usage.php](simplified-usage.php)** - 最简单的使用方式
+   - 展示辅助函数的使用
+   - 快速创建独立实例
+   - 批量操作示例
 
-```bash
-php examples/key-management-quickstart.php
+2. **[best-practices.php](best-practices.php)** - 最佳实践指南
+   - 全局配置 + 辅助函数（推荐）
+   - 多环境配置
+   - 实际业务场景示例
+
+3. **[factory-usage.php](factory-usage.php)** - 工厂模式详解
+   - 快速创建方式
+   - 配置式创建
+   - 多实例管理
+
+### 🔧 功能专题示例
+
+4. **[key-management-quickstart.php](key-management-quickstart.php)** - 键管理快速入门
+   - 快速创建方式
+   - 全局配置方式
+   - 键管理详细示例
+
+5. **[key-management-example.php](key-management-example.php)** - 键管理高级功能
+   - 复杂键模板配置
+   - 业务服务集成
+   - 实际电商场景
+
+6. **[project-integration-example.php](project-integration-example.php)** - 项目集成示例
+   - 工厂模式集成
+   - 门面模式集成
+   - 多环境配置
+   - 批量操作
+
+## 🚀 使用方式对比
+
+### ❌ 旧方式（繁琐）
+```php
+// 每次都要手动创建
+$keyManager = new KeyManager([
+    'app_prefix' => 'test',
+    'env_prefix' => 'dev',
+    'version' => 'v1',
+    'templates' => [
+        'user' => 'user:{id}',
+        // ...
+    ]
+]);
+
+$cache = new CacheKV(new ArrayDriver(), 60, $keyManager);
 ```
 
-**包含内容：**
-- 基本键生成和使用
-- 批量操作
-- 自定义模板
-- 键解析和验证
-- 模式匹配
+### ✅ 新方式（简洁）
 
-#### 2. [key-management-example.php](key-management-example.php)
-**完整功能示例** - 深入了解 Key 管理的所有功能
+#### 方案1：辅助函数（推荐）
+```php
+// 一次配置
+CacheKVFactory::setDefaultConfig([...]);
+
+// 任何地方直接使用
+$user = cache_kv_get('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+```
+
+#### 方案2：快速创建
+```php
+// 一行代码创建
+$cache = cache_kv_quick('myapp', 'dev', [
+    'user' => 'user:{id}',
+    'product' => 'product:{id}',
+]);
+```
+
+#### 方案3：工厂模式
+```php
+$cache = CacheKVFactory::create();
+$user = $cache->getByTemplate('user', ['id' => 123], $callback);
+```
+
+## 🎯 选择建议
+
+| 项目类型 | 推荐方案 | 示例文件 |
+|---------|---------|---------|
+| **简单项目** | 快速创建 | `simplified-usage.php` |
+| **中型项目** | 全局配置 + 辅助函数 | `best-practices.php` |
+| **大型项目** | 工厂模式 + 业务服务 | `project-integration-example.php` |
+| **企业项目** | 门面模式 + 依赖注入 | `project-integration-example.php` |
+
+## 🔍 快速测试
+
+运行任何示例文件：
 
 ```bash
+# 最简单的使用方式
+php examples/simplified-usage.php
+
+# 最佳实践指南
+php examples/best-practices.php
+
+# 项目集成示例
+php examples/project-integration-example.php
+
+# 键管理示例
 php examples/key-management-example.php
 ```
 
-**包含内容：**
-- 基本 Key 生成
-- 复杂参数的 Key 生成
-- 在缓存操作中使用 Key 管理
-- 批量 Key 操作
-- Key 模式匹配（用于批量清理）
-- Key 解析和验证
-- 动态模板管理
-- 实际业务场景示例
-- 缓存统计和监控
+## ✨ 新模式优势
 
-## 运行示例
+1. **消除重复代码** - 不再需要每次手动创建 KeyManager 和 CacheKV
+2. **使用更简洁** - 提供辅助函数，一行代码搞定
+3. **配置更灵活** - 支持全局配置、快速创建、多实例管理
+4. **符合标准** - 完全符合 Composer PSR-4 标准
+5. **向后兼容** - 原有使用方式仍然可用
 
-### 环境要求
-- PHP 7.0 或更高版本
-- 已安装 CacheKV 依赖
+## 📚 相关文档
 
-### 运行方法
-
-1. **进入项目根目录**
-   ```bash
-   cd /path/to/cachekv
-   ```
-
-2. **运行快速入门示例**
-   ```bash
-   php examples/key-management-quickstart.php
-   ```
-
-3. **运行完整功能示例**
-   ```bash
-   php examples/key-management-example.php
-   ```
-
-## 示例说明
-
-### Key 管理的核心价值
-
-CacheKV 的 KeyManager 解决了缓存使用中的关键问题：
-
-- ✅ **统一命名规范** - 避免键名混乱和冲突
-- ✅ **环境隔离** - 自动处理不同环境的键前缀
-- ✅ **模板化管理** - 预定义和自定义键模板
-- ✅ **批量操作支持** - 简化批量缓存操作
-- ✅ **键解析验证** - 完整的键管理功能
-
-### 实际应用场景
-
-示例中展示了以下实际应用场景：
-
-1. **用户数据缓存** - 标准化的用户信息缓存
-2. **产品信息缓存** - 电商系统中的产品数据缓存
-3. **API 响应缓存** - 外部 API 调用结果缓存
-4. **批量数据操作** - 高效的批量缓存处理
-5. **购物车缓存** - 用户购物车数据管理
-
-### 键命名规范
-
-示例中使用的键命名遵循以下规范：
-
-```
-{app_prefix}:{env_prefix}:{version}:{business_key}
-```
-
-例如：
-- `myapp:prod:v1:user:123` - 生产环境用户数据
-- `myapp:dev:v1:product:456` - 开发环境产品数据
-- `myapp:test:v2:cart:789` - 测试环境购物车数据
-
-## 相关文档
-
-- [Key 管理详细文档](../docs/key-management.md) - 完整的 Key 管理指南
-- [API 参考文档](../docs/api-reference.md) - 详细的 API 文档
-- [使用指南](../docs/usage-guide.md) - 全面的使用教程
-
-## 下一步
-
-1. **运行示例** - 先运行快速入门示例了解基本用法
-2. **阅读文档** - 查看详细文档了解更多功能
-3. **实际应用** - 在您的项目中应用 Key 管理功能
-4. **自定义扩展** - 根据业务需求添加自定义模板
-
-## 问题反馈
-
-如果您在运行示例时遇到问题，或者有任何建议，请：
-
-1. 检查 PHP 版本和依赖是否正确安装
-2. 查看错误信息和日志
-3. 参考相关文档
-4. 提交 Issue 或 Pull Request
-
----
-
-**开始探索 CacheKV 的强大功能吧！** 🚀
+- [快速开始](../docs/quick-start.md)
+- [核心功能](../docs/core-features.md)
+- [API 参考](../docs/api-reference.md)
+- [主项目 README](../README.md)

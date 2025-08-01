@@ -28,7 +28,8 @@
             "Asfop\\CacheKV\\": "src/"
         },
         "files": [
-            "src/CacheKVServiceProvider.php"
+            "src/CacheKVServiceProvider.php",
+            "src/helpers.php"
         ]
     },
     "autoload-dev": {
