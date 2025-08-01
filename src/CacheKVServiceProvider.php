@@ -3,6 +3,7 @@
 namespace Asfop\CacheKV;
 
 use Asfop\CacheKV\Cache\CacheManager;
+use Asfop\CacheKV\Cache\KeyManager;
 
 class CacheKVServiceProvider
 {
@@ -54,8 +55,14 @@ class CacheKVServiceProvider
             $ttl += rand(-$jitter, $jitter);
         }
 
+        // 创建 KeyManager 实例（如果配置了）
+        $keyManager = null;
+        if (isset($finalConfig['key_manager'])) {
+            $keyManager = new KeyManager($finalConfig['key_manager']);
+        }
+
         // 创建 CacheKV 实例并注册到门面
-        $cacheKV = new CacheKV($driver, $ttl);
+        $cacheKV = new CacheKV($driver, $ttl, $keyManager);
         CacheKVFacade::setInstance($cacheKV);
         
         return $cacheKV;

@@ -147,4 +147,84 @@ class CacheKVFacade
     {
         return self::getInstance()->getStats();
     }
+
+    /**
+     * 通过门面使用模板生成键并获取缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param callable|null $callback 回调函数
+     * @param int|null $ttl 缓存过期时间
+     * @return mixed
+     */
+    public static function getByTemplate($template, $params = [], $callback = null, $ttl = null)
+    {
+        return self::getInstance()->getByTemplate($template, $params, $callback, $ttl);
+    }
+
+    /**
+     * 通过门面使用模板生成键并设置缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param mixed $value 缓存值
+     * @param int|null $ttl 缓存过期时间
+     * @return bool
+     */
+    public static function setByTemplate($template, $params = [], $value = null, $ttl = null)
+    {
+        return self::getInstance()->setByTemplate($template, $params, $value, $ttl);
+    }
+
+    /**
+     * 通过门面使用模板生成键并设置带标签的缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param mixed $value 缓存值
+     * @param string|array $tags 标签
+     * @param int|null $ttl 缓存过期时间
+     * @return bool
+     */
+    public static function setByTemplateWithTag($template, $params = [], $value = null, $tags = [], $ttl = null)
+    {
+        return self::getInstance()->setByTemplateWithTag($template, $params, $value, $tags, $ttl);
+    }
+
+    /**
+     * 通过门面使用模板生成键并删除缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @return bool
+     */
+    public static function forgetByTemplate($template, $params = [])
+    {
+        return self::getInstance()->forgetByTemplate($template, $params);
+    }
+
+    /**
+     * 通过门面使用模板生成键并检查缓存是否存在
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @return bool
+     */
+    public static function hasByTemplate($template, $params = [])
+    {
+        return self::getInstance()->hasByTemplate($template, $params);
+    }
+
+    /**
+     * 通过门面生成缓存键（不执行缓存操作）
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param bool $withPrefix 是否包含前缀
+     * @return string
+     */
+    public static function makeKey($template, $params = [], $withPrefix = true)
+    {
+        return self::getInstance()->makeKey($template, $params, $withPrefix);
+    }
 }

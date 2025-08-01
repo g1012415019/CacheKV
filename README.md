@@ -57,7 +57,30 @@ $cache->setWithTag('user:2', $userData, ['users', 'normal_users']);
 $cache->clearTag('users');
 ```
 
-### 📊 3. 性能统计功能
+### 🔑 3. 统一的 Key 管理（新功能）
+
+```php
+use Asfop\CacheKV\Cache\KeyManager;
+
+// 创建键管理器
+$keyManager = new KeyManager([
+    'app_prefix' => 'myapp',
+    'env_prefix' => 'prod',
+    'version' => 'v1'
+]);
+
+// 标准化的键生成
+$userKey = $keyManager->make('user', ['id' => 123]);
+// 结果: myapp:prod:v1:user:123
+
+// 与缓存集成使用
+$cache->setKeyManager($keyManager);
+$user = $cache->getByTemplate('user', ['id' => 123], function() {
+    return getUserFromDatabase(123);
+});
+```
+
+### 📊 4. 性能统计功能
 
 ```php
 $stats = $cache->getStats();
@@ -189,6 +212,9 @@ $cache = new CacheKV(new ArrayDriver());
 | `getMultiple($keys, $callback, $ttl)` | **批量获取**：自动处理批量缓存 | 只获取缓存中不存在的数据 |
 | `setWithTag($key, $value, $tags, $ttl)` | **标签缓存**：设置带标签的缓存 | 便于批量管理相关缓存 |
 | `clearTag($tag)` | **批量失效**：清除标签下所有缓存 | 一次清除相关的所有缓存项 |
+| `getByTemplate($template, $params, $callback, $ttl)` | **模板获取**：使用模板生成键并获取缓存 | 结合 KeyManager 的便捷方法 |
+| `setByTemplate($template, $params, $value, $ttl)` | **模板设置**：使用模板生成键并设置缓存 | 标准化的键管理 |
+| `makeKey($template, $params, $withPrefix)` | **键生成**：生成标准化的缓存键 | 不执行缓存操作，仅生成键 |
 | `getStats()` | **性能统计**：获取缓存统计信息 | 监控缓存命中率和性能 |
 | `set($key, $value, $ttl)` | 设置缓存 | 基础缓存操作 |
 | `has($key)` | 检查缓存是否存在 | 基础缓存操作 |
@@ -221,6 +247,7 @@ composer test
 ### 📚 核心文档
 - [入门指南](docs/getting-started.md) - 快速上手 CacheKV
 - [核心功能详解](docs/core-features.md) - 三大核心功能的实现原理
+- [Key 管理指南](docs/key-management.md) - 统一的缓存键管理系统
 - [使用指南](docs/usage-guide.md) - 详细的使用教程和实际示例
 - [API 参考文档](docs/api-reference.md) - 完整的 API 文档和方法说明
 - [架构文档](docs/architecture.md) - 深入了解 CacheKV 的设计架构

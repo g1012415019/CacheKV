@@ -5,6 +5,7 @@ namespace Asfop\CacheKV;
 use Asfop\CacheKV\Cache\CacheDriver;
 use Asfop\CacheKV\Cache\CacheManager;
 use Asfop\CacheKV\Cache\Drivers\RedisDriver;
+use Asfop\CacheKV\Cache\KeyManager;
 
 class CacheKV
 {
@@ -24,17 +25,24 @@ class CacheKV
      * 当调用 set 或 get 方法时未指定 TTL (Time To Live) 时，将使用此默认值。
      */
     private $defaultTtl;
+    
+    /**
+     * @var KeyManager|null 键管理器实例
+     */
+    private $keyManager;
 
     /**
      * 构造函数。
      *
      * @param CacheDriver $driver 缓存驱动实例，用于实际的数据存储和检索。
      * @param int $defaultTtl 默认缓存有效期（秒）。
+     * @param KeyManager|null $keyManager 键管理器实例
      */
-    public function __construct(CacheDriver $driver, $defaultTtl = 3600)
+    public function __construct(CacheDriver $driver, $defaultTtl = 3600, KeyManager $keyManager = null)
     {
         $this->driver = $driver;
         $this->defaultTtl = $defaultTtl;
+        $this->keyManager = $keyManager;
     }
 
     /**
@@ -187,5 +195,134 @@ class CacheKV
     public function getStats()
     {
         return $this->driver->getStats();
+    }
+    
+    /**
+     * 设置键管理器
+     * 
+     * @param KeyManager $keyManager 键管理器实例
+     */
+    public function setKeyManager(KeyManager $keyManager)
+    {
+        $this->keyManager = $keyManager;
+    }
+    
+    /**
+     * 获取键管理器
+     * 
+     * @return KeyManager|null
+     */
+    public function getKeyManager()
+    {
+        return $this->keyManager;
+    }
+    
+    /**
+     * 使用模板生成键并获取缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param callable|null $callback 回调函数
+     * @param int|null $ttl 缓存过期时间
+     * @return mixed
+     */
+    public function getByTemplate($template, $params = [], $callback = null, $ttl = null)
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->get($key, $callback, $ttl);
+    }
+    
+    /**
+     * 使用模板生成键并设置缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param mixed $value 缓存值
+     * @param int|null $ttl 缓存过期时间
+     * @return bool
+     */
+    public function setByTemplate($template, $params = [], $value = null, $ttl = null)
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->set($key, $value, $ttl);
+    }
+    
+    /**
+     * 使用模板生成键并设置带标签的缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param mixed $value 缓存值
+     * @param string|array $tags 标签
+     * @param int|null $ttl 缓存过期时间
+     * @return bool
+     */
+    public function setByTemplateWithTag($template, $params = [], $value = null, $tags = [], $ttl = null)
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->setWithTag($key, $value, $tags, $ttl);
+    }
+    
+    /**
+     * 使用模板生成键并删除缓存
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @return bool
+     */
+    public function forgetByTemplate($template, $params = [])
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->forget($key);
+    }
+    
+    /**
+     * 使用模板生成键并检查缓存是否存在
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @return bool
+     */
+    public function hasByTemplate($template, $params = [])
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        $key = $this->keyManager->make($template, $params);
+        return $this->has($key);
+    }
+    
+    /**
+     * 生成缓存键（不执行缓存操作）
+     * 
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @param bool $withPrefix 是否包含前缀
+     * @return string
+     */
+    public function makeKey($template, $params = [], $withPrefix = true)
+    {
+        if (!$this->keyManager) {
+            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
+        }
+        
+        return $this->keyManager->make($template, $params, $withPrefix);
     }
 }
