@@ -53,8 +53,8 @@
     "scripts": {
         "test": "phpunit",
         "test-coverage": "phpunit --coverage-html coverage",
-        "benchmark": "php benchmark.php",
-        "example": "php example_constants.php",
+        "benchmark": "php examples/advanced/benchmark.php",
+        "example": "php examples/basic/example_constants.php",
         "cs-check": "phpcs --standard=PSR12 src/",
         "cs-fix": "phpcbf --standard=PSR12 src/"
     },
