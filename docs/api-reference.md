@@ -27,7 +27,7 @@ $cache = new CacheKV(new ArrayDriver(), 3600, $keyManager);
 使用模板获取缓存数据，支持自动回填。
 
 ```php
-public function getByTemplate(string $template, array $params = [], callable $callback = null, int $ttl = null): mixed
+public function getByTemplate(string $template, array $params = [], callable $callback = null, int $ttl = null, bool $slidingExpiration = false): mixed
 ```
 
 **参数：**
@@ -35,12 +35,19 @@ public function getByTemplate(string $template, array $params = [], callable $ca
 - `$params` - 模板参数
 - `$callback` - 缓存未命中时的回调函数
 - `$ttl` - 缓存过期时间（可选）
+- `$slidingExpiration` - 是否启用滑动过期（可选）
 
 **示例：**
 ```php
+// 基本用法
 $user = $cache->getByTemplate('user', ['id' => 123], function() {
     return getUserFromDatabase(123);
 }, 3600);
+
+// 启用滑动过期
+$hotData = $cache->getByTemplate('hot_data', ['id' => 123], function() {
+    return getHotDataFromDatabase(123);
+}, 3600, true); // 每次访问都会延长过期时间
 ```
 
 #### setByTemplate()

@@ -5,31 +5,32 @@ namespace Asfop\CacheKV\Cache\Drivers;
 use Asfop\CacheKV\Cache\CacheDriver;
 
 /**
- * ArrayDriver 是一个基于内存数组实现的缓存驱动。
- * 它实现了 CacheDriver 接口，主要用于测试和开发环境。
- * 注意：此驱动的数据只在当前请求生命周期内有效，不会持久化。
+ * ArrayDriver 是一个基于内存数组实现的缓存驱动
+ * 
+ * 主要用于开发和测试环境，数据只在当前请求生命周期内有效，不会持久化。
+ * 支持过期时间、标签管理等完整的缓存功能。
  */
 class ArrayDriver implements CacheDriver
 {
     /**
      * @var array 存储缓存数据的数组
      */
-    protected $cache = array();
+    protected $cache = [];
 
     /**
      * @var array 存储过期时间的数组
      */
-    protected $expiration = array();
+    protected $expiration = [];
 
     /**
-     * @var array 存储标签关联的数组
+     * @var array 存储标签关联的数组 [tag => [key1, key2, ...]]
      */
-    protected $tags = array();
+    protected $tags = [];
 
     /**
-     * @var array 存储键对应标签的数组
+     * @var array 存储键对应标签的数组 [key => [tag1, tag2, ...]]
      */
-    protected $keyTags = array();
+    protected $keyTags = [];
 
     /**
      * @var int 缓存命中次数
@@ -49,7 +50,20 @@ class ArrayDriver implements CacheDriver
      */
     public function get($key)
     {
-        if (!$this->has($key)) {
+        if (empty($key)) {
+            $this->misses++;
+            return null;
+        }
+
+        // 检查键是否存在
+        if (!array_key_exists($key, $this->cache)) {
+            $this->misses++;
+            return null;
+        }
+
+        // 检查是否过期
+        if ($this->isExpired($key)) {
+            $this->removeExpiredKey($key);
             $this->misses++;
             return null;
         }
@@ -62,17 +76,25 @@ class ArrayDriver implements CacheDriver
      * 从缓存中批量获取多个键的值
      *
      * @param array $keys 缓存项键名的数组
-     * @return array 一个关联数组，其中键是缓存项的键名，值是对应的缓存数据
+     * @return array 键值对数组，不存在或已过期的键不会出现在结果中
      */
     public function getMultiple(array $keys)
     {
-        $results = array();
+        $results = [];
         
         foreach ($keys as $key) {
-            if ($this->has($key)) {
+            if (empty($key)) {
+                $this->misses++;
+                continue;
+            }
+
+            if (array_key_exists($key, $this->cache) && !$this->isExpired($key)) {
                 $results[$key] = $this->cache[$key];
                 $this->hits++;
             } else {
+                if ($this->isExpired($key)) {
+                    $this->removeExpiredKey($key);
+                }
                 $this->misses++;
             }
         }
@@ -90,23 +112,38 @@ class ArrayDriver implements CacheDriver
      */
     public function set($key, $value, $ttl)
     {
+        if (empty($key) || $ttl <= 0) {
+            return false;
+        }
+
         $this->cache[$key] = $value;
         $this->expiration[$key] = time() + $ttl;
+        
         return true;
     }
 
     /**
      * 批量将多个键值对存储到缓存中
      *
-     * @param array $values 一个关联数组，其中键是缓存项的键名，值是对应的缓存数据
+     * @param array $values 键值对数组
      * @param int $ttl 缓存有效期（秒）
      * @return bool 存储操作是否成功
      */
     public function setMultiple(array $values, $ttl)
     {
-        foreach ($values as $key => $value) {
-            $this->set($key, $value, $ttl);
+        if (empty($values) || $ttl <= 0) {
+            return false;
         }
+
+        $expirationTime = time() + $ttl;
+        
+        foreach ($values as $key => $value) {
+            if (!empty($key)) {
+                $this->cache[$key] = $value;
+                $this->expiration[$key] = $expirationTime;
+            }
+        }
+
         return true;
     }
 
@@ -118,16 +155,21 @@ class ArrayDriver implements CacheDriver
      */
     public function forget($key)
     {
-        $existed = isset($this->cache[$key]);
+        if (empty($key)) {
+            return false;
+        }
+
+        $existed = array_key_exists($key, $this->cache);
         
+        // 移除缓存数据
         unset($this->cache[$key]);
         unset($this->expiration[$key]);
         
-        // 清理标签关联
+        // 移除标签关联
         if (isset($this->keyTags[$key])) {
             foreach ($this->keyTags[$key] as $tag) {
                 if (isset($this->tags[$tag])) {
-                    $this->tags[$tag] = array_diff($this->tags[$tag], array($key));
+                    $this->tags[$tag] = array_diff($this->tags[$tag], [$key]);
                     if (empty($this->tags[$tag])) {
                         unset($this->tags[$tag]);
                     }
@@ -135,24 +177,24 @@ class ArrayDriver implements CacheDriver
             }
             unset($this->keyTags[$key]);
         }
-        
+
         return $existed;
     }
 
     /**
      * 检查缓存中是否存在指定键的缓存项
      *
-     * @param string $key 要检查的缓存项的键名
-     * @return bool 如果缓存中存在该键且未过期，则返回 true；否则返回 false
+     * @param string $key 缓存项的唯一键名
+     * @return bool 如果缓存中存在该键且未过期，则返回 true
      */
     public function has($key)
     {
-        if (!isset($this->cache[$key])) {
+        if (empty($key) || !array_key_exists($key, $this->cache)) {
             return false;
         }
 
-        if (isset($this->expiration[$key]) && $this->expiration[$key] < time()) {
-            $this->forget($key);
+        if ($this->isExpired($key)) {
+            $this->removeExpiredKey($key);
             return false;
         }
 
@@ -163,24 +205,39 @@ class ArrayDriver implements CacheDriver
      * 将一个缓存项与一个或多个标签关联
      *
      * @param string $key 缓存项的唯一键名
-     * @param array $tags 包含一个或多个标签名的数组
+     * @param array $tags 标签名数组
      * @return bool 关联操作是否成功
      */
     public function tag($key, array $tags)
     {
-        foreach ($tags as $tag) {
-            if (!isset($this->tags[$tag])) {
-                $this->tags[$tag] = array();
-            }
-            if (!in_array($key, $this->tags[$tag])) {
-                $this->tags[$tag][] = $key;
-            }
+        if (empty($key) || empty($tags)) {
+            return false;
         }
 
-        $this->keyTags[$key] = array_unique(array_merge(
-            isset($this->keyTags[$key]) ? $this->keyTags[$key] : array(),
-            $tags
-        ));
+        // 确保键存在于缓存中
+        if (!array_key_exists($key, $this->cache)) {
+            return false;
+        }
+
+        foreach ($tags as $tag) {
+            if (!empty($tag)) {
+                // 添加标签到键的关联
+                if (!isset($this->keyTags[$key])) {
+                    $this->keyTags[$key] = [];
+                }
+                if (!in_array($tag, $this->keyTags[$key])) {
+                    $this->keyTags[$key][] = $tag;
+                }
+
+                // 添加键到标签的关联
+                if (!isset($this->tags[$tag])) {
+                    $this->tags[$tag] = [];
+                }
+                if (!in_array($key, $this->tags[$tag])) {
+                    $this->tags[$tag][] = $key;
+                }
+            }
+        }
 
         return true;
     }
@@ -193,37 +250,38 @@ class ArrayDriver implements CacheDriver
      */
     public function clearTag($tag)
     {
-        if (!isset($this->tags[$tag])) {
+        if (empty($tag) || !isset($this->tags[$tag])) {
             return false;
         }
 
-        $keys = $this->tags[$tag];
-        foreach ($keys as $key) {
+        $keysToRemove = $this->tags[$tag];
+        
+        foreach ($keysToRemove as $key) {
             $this->forget($key);
         }
 
-        return true;
+        return !empty($keysToRemove);
     }
 
     /**
      * 获取缓存的统计信息
      *
-     * @return array 包含 'hits'、'misses' 和 'hit_rate' 的关联数组
+     * @return array 包含命中次数、未命中次数和命中率的数组
      */
     public function getStats()
     {
         $total = $this->hits + $this->misses;
         $hitRate = $total > 0 ? ($this->hits / $total) * 100 : 0;
 
-        return array(
+        return [
             'hits' => $this->hits,
             'misses' => $this->misses,
             'hit_rate' => round($hitRate, 2)
-        );
+        ];
     }
 
     /**
-     * 更新缓存项的过期时间
+     * 更新缓存项的过期时间（滑动过期）
      *
      * @param string $key 缓存项的唯一键名
      * @param int $ttl 新的缓存有效期（秒）
@@ -231,11 +289,104 @@ class ArrayDriver implements CacheDriver
      */
     public function touch($key, $ttl)
     {
-        if (!$this->has($key)) {
+        if (empty($key) || $ttl <= 0) {
+            return false;
+        }
+
+        if (!array_key_exists($key, $this->cache) || $this->isExpired($key)) {
             return false;
         }
 
         $this->expiration[$key] = time() + $ttl;
+        return true;
+    }
+
+    /**
+     * 检查键是否已过期
+     *
+     * @param string $key 缓存项的键名
+     * @return bool 如果已过期返回 true
+     */
+    protected function isExpired($key)
+    {
+        if (!isset($this->expiration[$key])) {
+            return false;
+        }
+
+        return time() > $this->expiration[$key];
+    }
+
+    /**
+     * 移除已过期的键
+     *
+     * @param string $key 要移除的键名
+     * @return void
+     */
+    protected function removeExpiredKey($key)
+    {
+        unset($this->cache[$key]);
+        unset($this->expiration[$key]);
+        
+        // 清理标签关联
+        if (isset($this->keyTags[$key])) {
+            foreach ($this->keyTags[$key] as $tag) {
+                if (isset($this->tags[$tag])) {
+                    $this->tags[$tag] = array_diff($this->tags[$tag], [$key]);
+                    if (empty($this->tags[$tag])) {
+                        unset($this->tags[$tag]);
+                    }
+                }
+            }
+            unset($this->keyTags[$key]);
+        }
+    }
+
+    /**
+     * 清理所有过期的缓存项
+     *
+     * @return int 清理的项目数量
+     */
+    public function cleanup()
+    {
+        $cleaned = 0;
+        $currentTime = time();
+        
+        foreach ($this->expiration as $key => $expireTime) {
+            if ($currentTime > $expireTime) {
+                $this->removeExpiredKey($key);
+                $cleaned++;
+            }
+        }
+        
+        return $cleaned;
+    }
+
+    /**
+     * 获取当前缓存的项目数量
+     *
+     * @return int 缓存项目数量
+     */
+    public function count()
+    {
+        // 先清理过期项目
+        $this->cleanup();
+        return count($this->cache);
+    }
+
+    /**
+     * 清空所有缓存
+     *
+     * @return bool 操作是否成功
+     */
+    public function flush()
+    {
+        $this->cache = [];
+        $this->expiration = [];
+        $this->tags = [];
+        $this->keyTags = [];
+        $this->hits = 0;
+        $this->misses = 0;
+        
         return true;
     }
 }

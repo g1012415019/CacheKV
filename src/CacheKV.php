@@ -3,21 +3,22 @@
 namespace Asfop\CacheKV;
 
 use Asfop\CacheKV\Cache\CacheDriver;
-use Asfop\CacheKV\Cache\CacheManager;
 use Asfop\CacheKV\Cache\KeyManager;
 
+/**
+ * CacheKV 主缓存管理类
+ * 
+ * 提供统一的缓存操作接口，支持自动回填、批量操作、标签管理和键管理等功能。
+ */
 class CacheKV
 {
-
     /**
-     * @var CacheDriver 缓存驱动实例。
-     * 负责与底层缓存存储（如 Redis, Array 等）进行实际的数据交互。
+     * @var CacheDriver 缓存驱动实例
      */
     private $driver;
 
     /**
-     * @var int $defaultTtl 默认缓存时间（秒）。
-     * 当调用 set 或 get 方法时未指定 TTL (Time To Live) 时，将使用此默认值。
+     * @var int 默认缓存时间（秒）
      */
     private $defaultTtl;
     
@@ -27,10 +28,10 @@ class CacheKV
     private $keyManager;
 
     /**
-     * 构造函数。
+     * 构造函数
      *
-     * @param CacheDriver $driver 缓存驱动实例，用于实际的数据存储和检索。
-     * @param int $defaultTtl 默认缓存有效期（秒）。
+     * @param CacheDriver $driver 缓存驱动实例
+     * @param int $defaultTtl 默认缓存有效期（秒）
      * @param KeyManager|null $keyManager 键管理器实例
      */
     public function __construct(CacheDriver $driver, $defaultTtl = 3600, KeyManager $keyManager = null)
@@ -41,31 +42,34 @@ class CacheKV
     }
 
     /**
-     * 从缓存中获取指定键的值。
+     * 从缓存中获取指定键的值
+     * 
      * 如果缓存中不存在该键，且提供了回调函数，则会执行回调函数从数据源获取数据，
      * 并将获取到的数据（包括 null）回填到缓存中，以防止缓存穿透。
-     * 如果缓存命中，且配置了滑动过期，则会自动延长缓存项的有效期。
      *
-     * @param string $key 缓存项的唯一键名。
-     * @param callable|null $callback 当缓存未命中时，用于从数据源获取数据的回调函数。
-     *                                  该回调函数不接受任何参数，并应返回要缓存的值。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
-     * @return mixed|null 缓存中存储的值，如果键不存在且未提供回调函数，则返回 null。
+     * @param string $key 缓存项的唯一键名
+     * @param callable|null $callback 当缓存未命中时的回调函数
+     * @param int|null $ttl 缓存有效期（秒）
+     * @param bool $slidingExpiration 是否启用滑动过期
+     * @return mixed|null 缓存中存储的值
      */
-    public function get($key, $callback = null, $ttl = null)
+    public function get($key, $callback = null, $ttl = null, $slidingExpiration = false)
     {
         $value = $this->driver->get($key);
 
-        // 如果缓存命中，则执行滑动过期逻辑
-        if ($value !== null) {
-            // 使用传入的 TTL 或默认 TTL 来延长过期时间
+        // 如果缓存命中且启用了滑动过期，则延长过期时间
+        if ($value !== null && $slidingExpiration) {
             $slidingTtl = $ttl !== null ? $ttl : $this->defaultTtl;
             $this->driver->touch($key, $slidingTtl);
+        }
+
+        // 缓存命中，直接返回
+        if ($value !== null) {
             return $value;
         }
 
         // 缓存未命中，如果提供了回调函数，则从数据源获取并回填
-        if ($callback !== null) {
+        if ($callback !== null && is_callable($callback)) {
             $fetchedValue = call_user_func($callback);
             // 即使 fetchedValue 为 null 也会被缓存，以防止缓存穿透
             $this->set($key, $fetchedValue, $ttl);
@@ -77,31 +81,38 @@ class CacheKV
     }
 
     /**
-     * 将一个键值对存储到缓存中。
+     * 将一个键值对存储到缓存中
      *
-     * @param string $key 缓存项的唯一键名。
-     * @param mixed $value 要存储的数据。可以是任意可序列化的 PHP 数据类型。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
-     * @return bool 存储操作是否成功。
+     * @param string $key 缓存项的唯一键名
+     * @param mixed $value 要存储的数据
+     * @param int|null $ttl 缓存有效期（秒）
+     * @return bool 存储操作是否成功
      */
     public function set($key, $value, $ttl = null)
     {
+        if (empty($key)) {
+            return false;
+        }
+        
         return $this->driver->set($key, $value, $ttl !== null ? $ttl : $this->defaultTtl);
     }
 
     /**
-     * 将一个键值对存储到缓存中，并与一个或多个标签关联。
-     * 标签系统允许对相关缓存项进行分组管理，方便批量失效。
+     * 将一个键值对存储到缓存中，并与一个或多个标签关联
      *
-     * @param string $key 缓存项的唯一键名。
-     * @param mixed $value 要存储的数据。可以是任意可序列化的 PHP 数据类型。
-     * @param string|array $tags 单个标签名（字符串）或标签名数组。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
-     * @return bool 存储操作是否成功。
+     * @param string $key 缓存项的唯一键名
+     * @param mixed $value 要存储的数据
+     * @param string|array $tags 单个标签名或标签名数组
+     * @param int|null $ttl 缓存有效期（秒）
+     * @return bool 存储操作是否成功
      */
     public function setWithTag($key, $value, $tags, $ttl = null)
     {
-        $result = $this->driver->set($key, $value, $ttl !== null ? $ttl : $this->defaultTtl);
+        if (empty($key) || empty($tags)) {
+            return false;
+        }
+        
+        $result = $this->set($key, $value, $ttl);
         if ($result) {
             $this->driver->tag($key, (array) $tags);
         }
@@ -109,39 +120,52 @@ class CacheKV
     }
 
     /**
-     * 从缓存中批量获取多个键值对。
+     * 从缓存中批量获取多个键值对
+     * 
      * 对于缓存未命中的键，会调用提供的回调函数从数据源批量获取数据，
      * 并将获取到的数据回填到缓存中。
      *
-     * @param array $keys 缓存项键名的数组。
-     * @param callable $callback 当部分或全部缓存键未命中时，用于从数据源批量获取数据的回调函数。
-     *                           回调函数接收一个数组参数，包含所有未命中的键，并应返回一个键值对数组，
-     *                           其中键是原始的缓存键，值是对应的数据。
-     * @param int|null $ttl 缓存有效期（秒）。如果为 null，则使用 CacheKV 实例的默认 TTL。
-     * @return array 包含所有请求键的键值对数组。如果某个键在缓存和数据源中都不存在，则该键不会出现在返回数组中。
+     * @param array $keys 缓存项键名的数组
+     * @param callable|null $callback 批量获取数据的回调函数
+     * @param int|null $ttl 缓存有效期（秒）
+     * @return array 包含所有请求键的键值对数组
      */
-    public function getMultiple($keys, $callback, $ttl = null)
+    public function getMultiple($keys, $callback = null, $ttl = null)
     {
-        $cachedValues = $this->driver->getMultiple($keys);
+        if (empty($keys) || !is_array($keys)) {
+            return [];
+        }
 
+        $cachedValues = $this->driver->getMultiple($keys);
         $missingKeys = [];
         $results = [];
 
-        foreach ($keys as $originalKey) {
-            if (array_key_exists($originalKey, $cachedValues)) {
-                $results[$originalKey] = $cachedValues[$originalKey];
+        // 分离缓存命中和未命中的键
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $cachedValues)) {
+                $results[$key] = $cachedValues[$key];
             } else {
-                $missingKeys[] = $originalKey;
+                $missingKeys[] = $key;
             }
         }
 
-        if (!empty($missingKeys)) {
-            $fetchedValues = call_user_func($callback, $missingKeys);
-            if (!empty($fetchedValues)) {
-                $this->driver->setMultiple($fetchedValues, $ttl !== null ? $ttl : $this->defaultTtl);
-            }
-            foreach ($fetchedValues as $key => $value) {
-                $results[$key] = $value;
+        // 如果有未命中的键且提供了回调函数，则批量获取
+        if (!empty($missingKeys) && $callback !== null && is_callable($callback)) {
+            try {
+                $fetchedValues = call_user_func($callback, $missingKeys);
+                
+                if (is_array($fetchedValues) && !empty($fetchedValues)) {
+                    // 批量写入缓存
+                    $this->driver->setMultiple($fetchedValues, $ttl !== null ? $ttl : $this->defaultTtl);
+                    
+                    // 合并到结果中
+                    foreach ($fetchedValues as $key => $value) {
+                        $results[$key] = $value;
+                    }
+                }
+            } catch (\Exception $e) {
+                // 回调函数执行失败，记录错误但不影响已缓存的数据返回
+                error_log("CacheKV getMultiple callback failed: " . $e->getMessage());
             }
         }
 
@@ -149,43 +173,54 @@ class CacheKV
     }
 
     /**
-     * 从缓存中移除指定键的缓存项。
+     * 从缓存中移除指定键的缓存项
      *
-     * @param string $key 要移除的缓存项的键名。
-     * @return bool 移除操作是否成功。
+     * @param string $key 要移除的缓存项的键名
+     * @return bool 移除操作是否成功
      */
     public function forget($key)
     {
+        if (empty($key)) {
+            return false;
+        }
+        
         return $this->driver->forget($key);
     }
 
     /**
-     * 清除指定标签下的所有缓存项。
-     * 此操作会遍历与该标签关联的所有缓存键，并将其从缓存中移除。
+     * 清除指定标签下的所有缓存项
      *
-     * @param string $tag 要清除的标签名。
-     * @return bool 清除操作是否成功。
+     * @param string $tag 要清除的标签名
+     * @return bool 清除操作是否成功
      */
     public function clearTag($tag)
     {
+        if (empty($tag)) {
+            return false;
+        }
+        
         return $this->driver->clearTag($tag);
     }
 
     /**
-     * 检查缓存中是否存在指定键的缓存项。
+     * 检查缓存中是否存在指定键的缓存项
      *
-     * @param string $key 要检查的缓存项的键名。
-     * @return bool 如果缓存中存在该键且未过期，则返回 true；否则返回 false。
+     * @param string $key 要检查的缓存项的键名
+     * @return bool 如果缓存中存在该键且未过期，则返回 true
      */
     public function has($key)
     {
+        if (empty($key)) {
+            return false;
+        }
+        
         return $this->driver->has($key);
     }
 
     /**
-     * 获取缓存的统计信息，例如缓存命中次数和未命中次数。
+     * 获取缓存的统计信息
      *
-     * @return array 包含 'hits'（缓存命中次数）、'misses'（缓存未命中次数）和 'hit_rate'（缓存命中率）的关联数组。
+     * @return array 包含命中次数、未命中次数和命中率的数组
      */
     public function getStats()
     {
@@ -196,6 +231,7 @@ class CacheKV
      * 设置键管理器
      * 
      * @param KeyManager $keyManager 键管理器实例
+     * @return void
      */
     public function setKeyManager(KeyManager $keyManager)
     {
@@ -219,16 +255,16 @@ class CacheKV
      * @param array $params 参数
      * @param callable|null $callback 回调函数
      * @param int|null $ttl 缓存过期时间
+     * @param bool $slidingExpiration 是否启用滑动过期
      * @return mixed
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
-    public function getByTemplate($template, $params = [], $callback = null, $ttl = null)
+    public function getByTemplate($template, $params = [], $callback = null, $ttl = null, $slidingExpiration = false)
     {
-        if (!$this->keyManager) {
-            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
-        }
+        $this->ensureKeyManagerSet();
         
         $key = $this->keyManager->make($template, $params);
-        return $this->get($key, $callback, $ttl);
+        return $this->get($key, $callback, $ttl, $slidingExpiration);
     }
     
     /**
@@ -239,12 +275,11 @@ class CacheKV
      * @param mixed $value 缓存值
      * @param int|null $ttl 缓存过期时间
      * @return bool
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function setByTemplate($template, $params = [], $value = null, $ttl = null)
     {
-        if (!$this->keyManager) {
-            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
-        }
+        $this->ensureKeyManagerSet();
         
         $key = $this->keyManager->make($template, $params);
         return $this->set($key, $value, $ttl);
@@ -259,12 +294,11 @@ class CacheKV
      * @param string|array $tags 标签
      * @param int|null $ttl 缓存过期时间
      * @return bool
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function setByTemplateWithTag($template, $params = [], $value = null, $tags = [], $ttl = null)
     {
-        if (!$this->keyManager) {
-            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
-        }
+        $this->ensureKeyManagerSet();
         
         $key = $this->keyManager->make($template, $params);
         return $this->setWithTag($key, $value, $tags, $ttl);
@@ -276,12 +310,11 @@ class CacheKV
      * @param string $template 模板名称
      * @param array $params 参数
      * @return bool
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function forgetByTemplate($template, $params = [])
     {
-        if (!$this->keyManager) {
-            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
-        }
+        $this->ensureKeyManagerSet();
         
         $key = $this->keyManager->make($template, $params);
         return $this->forget($key);
@@ -293,12 +326,11 @@ class CacheKV
      * @param string $template 模板名称
      * @param array $params 参数
      * @return bool
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function hasByTemplate($template, $params = [])
     {
-        if (!$this->keyManager) {
-            throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
-        }
+        $this->ensureKeyManagerSet();
         
         $key = $this->keyManager->make($template, $params);
         return $this->has($key);
@@ -311,13 +343,55 @@ class CacheKV
      * @param array $params 参数
      * @param bool $withPrefix 是否包含前缀
      * @return string
+     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function makeKey($template, $params = [], $withPrefix = true)
+    {
+        $this->ensureKeyManagerSet();
+        
+        return $this->keyManager->make($template, $params, $withPrefix);
+    }
+    
+    /**
+     * 获取默认 TTL
+     * 
+     * @return int
+     */
+    public function getDefaultTtl()
+    {
+        return $this->defaultTtl;
+    }
+    
+    /**
+     * 设置默认 TTL
+     * 
+     * @param int $ttl 默认过期时间（秒）
+     * @return void
+     */
+    public function setDefaultTtl($ttl)
+    {
+        $this->defaultTtl = max(1, (int) $ttl); // 确保 TTL 至少为 1 秒
+    }
+    
+    /**
+     * 获取缓存驱动实例
+     * 
+     * @return CacheDriver
+     */
+    public function getDriver()
+    {
+        return $this->driver;
+    }
+    
+    /**
+     * 确保 KeyManager 已设置
+     * 
+     * @throws \RuntimeException 当 KeyManager 未设置时
+     */
+    private function ensureKeyManagerSet()
     {
         if (!$this->keyManager) {
             throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
         }
-        
-        return $this->keyManager->make($template, $params, $withPrefix);
     }
 }
