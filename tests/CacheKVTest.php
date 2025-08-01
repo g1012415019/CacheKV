@@ -3,6 +3,7 @@
 use PHPUnit\Framework\TestCase;
 use Asfop\CacheKV\CacheKV;
 use Asfop\CacheKV\CacheKVFactory;
+use Asfop\CacheKV\CacheKVBuilder;
 use Asfop\CacheKV\CacheTemplates;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 use Asfop\CacheKV\Cache\KeyManager;
@@ -14,29 +15,23 @@ class CacheKVTest extends TestCase
     
     protected function setUp(): void
     {
-        // 设置测试配置
-        CacheKVFactory::setDefaultConfig([
-            'default' => 'array',
-            'stores' => [
-                'array' => [
-                    'driver' => new ArrayDriver(),
-                    'ttl' => 3600
-                ]
-            ],
-            'key_manager' => [
-                'app_prefix' => 'test',
-                'env_prefix' => 'phpunit',
-                'version' => 'v1',
-                'templates' => [
-                    CacheTemplates::USER => 'user:{id}',
-                    CacheTemplates::POST => 'post:{id}',
-                    CacheTemplates::SESSION => 'session:{id}',
-                ]
+        // 使用新的配置方式创建缓存实例
+        $this->keyManager = CacheKVFactory::createKeyManager([
+            'app_prefix' => 'test',
+            'env_prefix' => 'phpunit',
+            'version' => 'v1',
+            'templates' => [
+                CacheTemplates::USER => 'user:{id}',
+                CacheTemplates::POST => 'post:{id}',
+                CacheTemplates::SESSION => 'session:{id}',
             ]
         ]);
         
-        $this->cache = CacheKVFactory::store();
-        $this->keyManager = CacheKVFactory::getKeyManager();
+        $this->cache = CacheKVFactory::create(
+            new ArrayDriver(),
+            3600,
+            $this->keyManager
+        );
         
         // 清空缓存
         $this->cache->flush();
@@ -45,6 +40,116 @@ class CacheKVTest extends TestCase
     protected function tearDown(): void
     {
         $this->cache->flush();
+    }
+    
+    // ========== 工厂方法测试 ==========
+    
+    public function testFactoryCreate()
+    {
+        $driver = new ArrayDriver();
+        $keyManager = new KeyManager(['app_prefix' => 'test']);
+        
+        $cache = CacheKVFactory::create($driver, 1800, $keyManager);
+        
+        $this->assertInstanceOf(CacheKV::class, $cache);
+        $this->assertEquals(1800, $cache->getDefaultTtl());
+        $this->assertSame($keyManager, $cache->getKeyManager());
+    }
+    
+    public function testFactoryCreateFromConfig()
+    {
+        $config = [
+            'driver' => new ArrayDriver(),
+            'ttl' => 7200,
+            'key_manager' => [
+                'app_prefix' => 'config_test',
+                'env_prefix' => 'test',
+                'version' => 'v2',
+                'templates' => [
+                    'test_template' => 'test:{id}'
+                ]
+            ]
+        ];
+        
+        $cache = CacheKVFactory::createFromConfig($config);
+        
+        $this->assertInstanceOf(CacheKV::class, $cache);
+        $this->assertEquals(7200, $cache->getDefaultTtl());
+        
+        $keyManager = $cache->getKeyManager();
+        $this->assertInstanceOf(KeyManager::class, $keyManager);
+        $this->assertEquals('config_test:test:v2:test:123', $keyManager->make('test_template', ['id' => 123]));
+    }
+    
+    public function testFactoryQuick()
+    {
+        $cache = CacheKVFactory::quick('myapp', 'dev', [
+            'user' => 'user:{id}',
+            'post' => 'post:{id}'
+        ], 1200);
+        
+        $this->assertInstanceOf(CacheKV::class, $cache);
+        $this->assertEquals(1200, $cache->getDefaultTtl());
+        
+        $keyManager = $cache->getKeyManager();
+        $this->assertEquals('myapp:dev:v1:user:123', $keyManager->make('user', ['id' => 123]));
+    }
+    
+    public function testFactoryCreateFromConfigMissingDriver()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Driver is required in config');
+        
+        CacheKVFactory::createFromConfig(['ttl' => 3600]);
+    }
+    
+    // ========== 构建器测试 ==========
+    
+    public function testBuilder()
+    {
+        $cache = CacheKVBuilder::create()
+            ->useArrayDriver()
+            ->ttl(1800)
+            ->appPrefix('builder_test')
+            ->envPrefix('test')
+            ->version('v1')
+            ->template('user', 'user:{id}')
+            ->template('post', 'post:{id}')
+            ->build();
+        
+        $this->assertInstanceOf(CacheKV::class, $cache);
+        $this->assertEquals(1800, $cache->getDefaultTtl());
+        
+        $keyManager = $cache->getKeyManager();
+        $this->assertEquals('builder_test:test:v1:user:123', $keyManager->make('user', ['id' => 123]));
+    }
+    
+    public function testBuilderWithTemplates()
+    {
+        $templates = [
+            'user' => 'user:{id}',
+            'post' => 'post:{id}:{slug}'
+        ];
+        
+        $cache = CacheKVBuilder::create()
+            ->useArrayDriver()
+            ->appPrefix('test')
+            ->envPrefix('test')
+            ->templates($templates)
+            ->build();
+        
+        $keyManager = $cache->getKeyManager();
+        $this->assertEquals('test:test:v1:post:123:hello-world', $keyManager->make('post', ['id' => 123, 'slug' => 'hello-world']));
+    }
+    
+    public function testBuilderMissingDriver()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Driver is required');
+        
+        CacheKVBuilder::create()
+            ->ttl(3600)
+            ->build();
     }
     
     // ========== 基础缓存操作测试 ==========
@@ -311,6 +416,38 @@ class CacheKVTest extends TestCase
         $this->assertFalse($this->cache->has('user:1'));
         $this->assertFalse($this->cache->has('user:2'));
         $this->assertTrue($this->cache->has('admin:1'));
+    }
+    
+    // ========== 辅助函数测试 ==========
+    
+    public function testHelperFunctions()
+    {
+        $userData = ['id' => 123, 'name' => 'Helper User'];
+        
+        // 测试 cache_kv_set
+        $this->assertTrue(cache_kv_set($this->cache, CacheTemplates::USER, ['id' => 123], $userData));
+        
+        // 测试 cache_kv_get
+        $result = cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 123]);
+        $this->assertEquals($userData, $result);
+        
+        // 测试 cache_kv_delete
+        $this->assertTrue(cache_kv_delete($this->cache, CacheTemplates::USER, ['id' => 123]));
+        $this->assertNull(cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 123]));
+    }
+    
+    public function testHelperFunctionWithCallback()
+    {
+        $callbackExecuted = false;
+        $userData = ['id' => 456, 'name' => 'Helper Callback User'];
+        
+        $result = cache_kv_get($this->cache, CacheTemplates::USER, ['id' => 456], function() use (&$callbackExecuted, $userData) {
+            $callbackExecuted = true;
+            return $userData;
+        });
+        
+        $this->assertTrue($callbackExecuted);
+        $this->assertEquals($userData, $result);
     }
     
     // ========== 键管理测试 ==========

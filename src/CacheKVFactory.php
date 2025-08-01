@@ -4,121 +4,113 @@ namespace Asfop\CacheKV;
 
 use Asfop\CacheKV\Cache\KeyManager;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use Asfop\CacheKV\Cache\Drivers\RedisDriver;
 
+/**
+ * CacheKV 工厂类
+ * 
+ * 提供多种方式创建 CacheKV 实例：
+ * 1. 直接创建（推荐）
+ * 2. 使用配置数组创建
+ * 3. 快速创建（开发测试用）
+ */
 class CacheKVFactory
 {
-    private static $instances = [];
-    private static $keyManager = null;
-    private static $defaultConfig = null;
-
     /**
-     * 设置默认配置
+     * 直接创建 CacheKV 实例（推荐方式）
+     * 
+     * @param \Asfop\CacheKV\Cache\CacheDriver $driver 缓存驱动
+     * @param int $ttl 默认TTL
+     * @param KeyManager|null $keyManager 键管理器
+     * @return CacheKV
      */
-    public static function setDefaultConfig(array $config)
+    public static function create($driver, $ttl = 3600, KeyManager $keyManager = null)
     {
-        self::$defaultConfig = $config;
-        // 清除缓存的实例，强制重新创建
-        self::$instances = [];
-        self::$keyManager = null;
+        return new CacheKV($driver, $ttl, $keyManager);
     }
-
+    
     /**
-     * 获取缓存存储实例
+     * 使用配置数组创建 CacheKV 实例
+     * 
+     * @param array $config 配置数组
+     * @return CacheKV
+     * @throws \InvalidArgumentException 当配置无效时
      */
-    public static function store($name = null)
+    public static function createFromConfig(array $config)
     {
-        $storeName = $name ?: (self::$defaultConfig['default'] ?? 'default');
+        // 验证配置
+        if (!isset($config['driver'])) {
+            throw new \InvalidArgumentException('Driver is required in config');
+        }
         
-        if (!isset(self::$instances[$storeName])) {
-            if (self::$defaultConfig === null) {
-                throw new \RuntimeException('请先调用 setDefaultConfig() 设置默认配置');
-            }
-
-            $config = self::$defaultConfig;
-            
-            // 创建 KeyManager
-            $keyManager = self::getKeyManager();
-
-            // 创建驱动
-            $storeConfig = $config['stores'][$storeName] ?? $config['stores'][$config['default']] ?? $config['stores']['array'];
-            $driver = $storeConfig['driver'];
-            $ttl = $storeConfig['ttl'] ?? 3600;
-
-            // 创建 CacheKV 实例
-            self::$instances[$storeName] = new CacheKV($driver, $ttl, $keyManager);
+        $driver = $config['driver'];
+        $ttl = $config['ttl'] ?? 3600;
+        
+        // 创建键管理器
+        $keyManager = null;
+        if (isset($config['key_manager'])) {
+            $keyManager = self::createKeyManager($config['key_manager']);
         }
-
-        return self::$instances[$storeName];
+        
+        return new CacheKV($driver, $ttl, $keyManager);
     }
-
+    
     /**
-     * 获取键管理器实例
+     * 快速创建 CacheKV 实例（主要用于开发测试）
+     * 
+     * @param string $appPrefix 应用前缀
+     * @param string $envPrefix 环境前缀
+     * @param array $templates 模板配置
+     * @param int $ttl 默认TTL
+     * @return CacheKV
      */
-    public static function getKeyManager()
+    public static function quick($appPrefix = 'app', $envPrefix = 'dev', $templates = [], $ttl = 3600)
     {
-        if (self::$keyManager === null) {
-            if (self::$defaultConfig === null) {
-                throw new \RuntimeException('请先调用 setDefaultConfig() 设置默认配置');
-            }
-
-            $config = self::$defaultConfig;
-            
-            self::$keyManager = new KeyManager([
-                'app_prefix' => $config['key_manager']['app_prefix'] ?? '',
-                'env_prefix' => $config['key_manager']['env_prefix'] ?? '',
-                'version' => $config['key_manager']['version'] ?? 'v1',
-                'separator' => $config['key_manager']['separator'] ?? ':',
-                'templates' => $config['key_manager']['templates'] ?? []
-            ]);
-        }
-
-        return self::$keyManager;
-    }
-
-    /**
-     * 获取默认实例（向后兼容）
-     */
-    public static function create($name = 'default')
-    {
-        return self::store($name);
-    }
-
-    /**
-     * 快速创建方法（不影响全局配置）
-     */
-    public static function quick($appPrefix = 'app', $envPrefix = 'dev', $templates = [])
-    {
-        // 直接创建实例，不影响全局配置
+        $driver = new ArrayDriver();
+        
         $keyManager = new KeyManager([
             'app_prefix' => $appPrefix,
             'env_prefix' => $envPrefix,
             'version' => 'v1',
             'templates' => $templates
         ]);
-
-        $driver = new ArrayDriver();
-        $ttl = 3600;
-
+        
         return new CacheKV($driver, $ttl, $keyManager);
     }
-
+    
     /**
-     * 清除实例缓存（主要用于测试和重新配置）
+     * 创建键管理器
+     * 
+     * @param array $config 键管理器配置
+     * @return KeyManager
      */
-    public static function clearInstances()
+    public static function createKeyManager(array $config)
     {
-        self::$instances = [];
-        self::$keyManager = null;
+        return new KeyManager($config);
     }
-
+    
     /**
-     * 重置工厂（清除配置和实例缓存）
+     * 创建 ArrayDriver 实例
+     * 
+     * @return \Asfop\CacheKV\Cache\Drivers\ArrayDriver
      */
-    public static function reset()
+    public static function createArrayDriver()
     {
-        self::$defaultConfig = null;
-        self::$instances = [];
-        self::$keyManager = null;
+        return new ArrayDriver();
+    }
+    
+    /**
+     * 创建 RedisDriver 实例
+     * 
+     * @param mixed $redis Redis 客户端实例
+     * @return \Asfop\CacheKV\Cache\Drivers\RedisDriver
+     * @throws \InvalidArgumentException 当 Redis 客户端无效时
+     */
+    public static function createRedisDriver($redis)
+    {
+        if (!class_exists('\Asfop\CacheKV\Cache\Drivers\RedisDriver')) {
+            throw new \InvalidArgumentException('RedisDriver class not found');
+        }
+        
+        return new \Asfop\CacheKV\Cache\Drivers\RedisDriver($redis);
     }
 }

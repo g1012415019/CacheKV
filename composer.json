@@ -41,7 +41,6 @@
             "Asfop\\CacheKV\\": "src/"
         },
         "files": [
-            "src/CacheKVServiceProvider.php",
             "src/helpers.php"
         ]
     },

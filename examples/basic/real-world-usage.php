@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 use Asfop\CacheKV\CacheKVFactory;
+use Asfop\CacheKV\CacheKVBuilder;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 
 echo "=== CacheKV 实际应用场景示例 ===\n\n";
@@ -23,37 +24,27 @@ class AppCacheTemplates {
     const SYSTEM_CONFIG = 'system_config';
 }
 
-// 配置 CacheKV
-CacheKVFactory::setDefaultConfig([
-    'default' => 'array',
-    'stores' => [
-        'array' => [
-            'driver' => new ArrayDriver(),
-            'ttl' => 3600
-        ]
-    ],
-    'key_manager' => [
-        'app_prefix' => 'myapp',
-        'env_prefix' => 'prod',
-        'version' => 'v1',
-        'templates' => [
-            AppCacheTemplates::USER_PROFILE => 'user:profile:{id}',
-            AppCacheTemplates::USER_PERMISSIONS => 'user:permissions:{user_id}',
-            AppCacheTemplates::PRODUCT_INFO => 'product:info:{id}',
-            AppCacheTemplates::PRODUCT_PRICE => 'product:price:{id}',
-            AppCacheTemplates::API_WEATHER => 'api:weather:{city}',
-            AppCacheTemplates::SEARCH_RESULTS => 'search:{query_hash}:{page}',
-            AppCacheTemplates::SYSTEM_CONFIG => 'config:{key}',
-        ]
-    ]
-]);
-
-$cache = CacheKVFactory::store();
+// 使用构建器创建缓存实例
+$cache = CacheKVBuilder::create()
+    ->useArrayDriver()
+    ->ttl(3600)
+    ->appPrefix('myapp')
+    ->envPrefix('prod')
+    ->version('v1')
+    ->templates([
+        AppCacheTemplates::USER_PROFILE => 'user:profile:{id}',
+        AppCacheTemplates::USER_PERMISSIONS => 'user:permissions:{user_id}',
+        AppCacheTemplates::PRODUCT_INFO => 'product:info:{id}',
+        AppCacheTemplates::PRODUCT_PRICE => 'product:price:{id}',
+        AppCacheTemplates::API_WEATHER => 'api:weather:{city}',
+        AppCacheTemplates::SEARCH_RESULTS => 'search:{query_hash}:{page}',
+        AppCacheTemplates::SYSTEM_CONFIG => 'config:{key}',
+    ])
+    ->build();
 
 // 模拟数据库和外部API
 class MockDatabase {
     public static function getUserProfile($userId) {
-        // 模拟数据库查询延迟
         usleep(50000); // 50ms
         return [
             'id' => $userId,
@@ -92,7 +83,6 @@ class MockDatabase {
 
 class MockWeatherAPI {
     public static function getWeather($city) {
-        // 模拟API调用延迟
         usleep(200000); // 200ms
         return [
             'city' => $city,
@@ -104,7 +94,7 @@ class MockWeatherAPI {
     }
 }
 
-// 应用服务层
+// 应用服务层 - 使用依赖注入
 class UserService {
     private $cache;
     
@@ -113,7 +103,8 @@ class UserService {
     }
     
     public function getUserProfile($userId) {
-        return $this->cache->getByTemplate(
+        return cache_kv_get(
+            $this->cache,
             AppCacheTemplates::USER_PROFILE,
             ['id' => $userId],
             function() use ($userId) {
@@ -125,7 +116,8 @@ class UserService {
     }
     
     public function getUserPermissions($userId) {
-        return $this->cache->getByTemplate(
+        return cache_kv_get(
+            $this->cache,
             AppCacheTemplates::USER_PERMISSIONS,
             ['user_id' => $userId],
             function() use ($userId) {
@@ -137,8 +129,8 @@ class UserService {
     }
     
     public function clearUserCache($userId) {
-        $this->cache->deleteByTemplate(AppCacheTemplates::USER_PROFILE, ['id' => $userId]);
-        $this->cache->deleteByTemplate(AppCacheTemplates::USER_PERMISSIONS, ['user_id' => $userId]);
+        cache_kv_delete($this->cache, AppCacheTemplates::USER_PROFILE, ['id' => $userId]);
+        cache_kv_delete($this->cache, AppCacheTemplates::USER_PERMISSIONS, ['user_id' => $userId]);
         echo "  [Cache] 清除用户 {$userId} 的缓存\n";
     }
 }
@@ -186,14 +178,15 @@ class WeatherService {
     }
     
     public function getWeather($city) {
-        return $this->cache->getByTemplate(
+        return cache_kv_get(
+            $this->cache,
             AppCacheTemplates::API_WEATHER,
             ['city' => $city],
             function() use ($city) {
                 echo "  [API] 调用天气API获取 {$city} 的天气\n";
                 return MockWeatherAPI::getWeather($city);
             },
-            1800 // 30分钟缓存，天气数据不需要实时
+            1800 // 30分钟缓存
         );
     }
 }
@@ -263,7 +256,8 @@ echo "场景4: 系统配置缓存\n";
 echo str_repeat("-", 30) . "\n";
 
 // 系统配置通常很少变化，可以长时间缓存
-$siteConfig = $cache->getByTemplate(
+$siteConfig = cache_kv_get(
+    $cache,
     AppCacheTemplates::SYSTEM_CONFIG,
     ['key' => 'site_settings'],
     function() {
@@ -291,12 +285,12 @@ $query = 'CacheKV tutorial';
 $queryHash = md5($query);
 $page = 1;
 
-$searchResults = $cache->getByTemplate(
+$searchResults = cache_kv_get(
+    $cache,
     AppCacheTemplates::SEARCH_RESULTS,
     ['query_hash' => $queryHash, 'page' => $page],
     function() use ($query) {
         echo "  [Search] 执行搜索: {$query}\n";
-        // 模拟搜索引擎查询
         return [
             'query' => $query,
             'total' => 42,
@@ -312,6 +306,29 @@ $searchResults = $cache->getByTemplate(
 
 echo "搜索 '{$searchResults['query']}' 找到 {$searchResults['total']} 个结果\n";
 echo "第一个结果: {$searchResults['results'][0]['title']}\n";
+
+echo "\n";
+
+echo "场景6: 多实例配置演示\n";
+echo str_repeat("-", 30) . "\n";
+
+// 创建不同环境的缓存实例
+$devCache = CacheKVFactory::quick('myapp', 'dev', [
+    'user' => 'user:{id}'
+], 1800);
+
+$prodCache = CacheKVFactory::quick('myapp', 'prod', [
+    'user' => 'user:{id}'
+], 3600);
+
+// 设置相同的数据到不同环境
+cache_kv_set($devCache, 'user', ['id' => 1], ['name' => 'Dev User']);
+cache_kv_set($prodCache, 'user', ['id' => 1], ['name' => 'Prod User']);
+
+echo "开发环境缓存键: " . $devCache->makeKey('user', ['id' => 1]) . "\n";
+echo "生产环境缓存键: " . $prodCache->makeKey('user', ['id' => 1]) . "\n";
+echo "开发环境用户: " . cache_kv_get($devCache, 'user', ['id' => 1])['name'] . "\n";
+echo "生产环境用户: " . cache_kv_get($prodCache, 'user', ['id' => 1])['name'] . "\n";
 
 echo "\n";
 
