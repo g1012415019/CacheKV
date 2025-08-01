@@ -3,7 +3,6 @@
 use PHPUnit\Framework\TestCase;
 use Asfop\CacheKV\CacheKV;
 use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\CacheTemplates;
 use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
 use Asfop\CacheKV\Cache\KeyManager;
 
@@ -12,17 +11,22 @@ class CacheKVTest extends TestCase
     private $cache;
     private $keyManager;
     
+    // 测试用的模板常量（仅用于测试）
+    const TEST_TEMPLATE_A = 'template_a';
+    const TEST_TEMPLATE_B = 'template_b';
+    const TEST_TEMPLATE_C = 'template_c';
+    
     protected function setUp(): void
     {
-        // 使用简化的配置方式
+        // 使用通用的测试模板
         $this->keyManager = new KeyManager([
             'app_prefix' => 'test',
             'env_prefix' => 'phpunit',
             'version' => 'v1',
             'templates' => [
-                CacheTemplates::USER => 'user:{id}',
-                CacheTemplates::POST => 'post:{id}',
-                CacheTemplates::SESSION => 'session:{id}',
+                self::TEST_TEMPLATE_A => 'tmpl_a:{id}',
+                self::TEST_TEMPLATE_B => 'tmpl_b:{id}',
+                self::TEST_TEMPLATE_C => 'tmpl_c:{id}',
             ]
         ]);
         
@@ -40,9 +44,9 @@ class CacheKVTest extends TestCase
             'env_prefix' => 'helper',
             'version' => 'v1',
             'templates' => [
-                CacheTemplates::USER => 'user:{id}',
-                CacheTemplates::POST => 'post:{id}',
-                CacheTemplates::SESSION => 'session:{id}',
+                self::TEST_TEMPLATE_A => 'tmpl_a:{id}',
+                self::TEST_TEMPLATE_B => 'tmpl_b:{id}',
+                self::TEST_TEMPLATE_C => 'tmpl_c:{id}',
             ]
         ]);
         
@@ -95,8 +99,8 @@ class CacheKVTest extends TestCase
     public function testFactoryQuick()
     {
         $cache = CacheKVFactory::quick([
-            'user' => 'user:{id}',
-            'post' => 'post:{id}'
+            'template_x' => 'tmpl_x:{id}',
+            'template_y' => 'tmpl_y:{id}'
         ], [
             'app_prefix' => 'quick_test',
             'env_prefix' => 'test',
@@ -107,7 +111,7 @@ class CacheKVTest extends TestCase
         $this->assertEquals(1200, $cache->getDefaultTtl());
         
         $keyManager = $cache->getKeyManager();
-        $this->assertEquals('quick_test:test:v1:user:123', $keyManager->make('user', ['id' => 123]));
+        $this->assertEquals('quick_test:test:v1:tmpl_x:123', $keyManager->make('template_x', ['id' => 123]));
     }
     
     public function testFactoryGetInstance()
@@ -126,14 +130,14 @@ class CacheKVTest extends TestCase
             'app_prefix' => 'custom_app',
             'env_prefix' => 'custom_env',
             'templates' => [
-                'custom' => 'custom:{id}'
+                'custom_template' => 'custom:{id}'
             ]
         ]);
         
         $instance = CacheKVFactory::getInstance();
         $keyManager = $instance->getKeyManager();
         
-        $this->assertEquals('custom_app:custom_env:v1:custom:123', $keyManager->make('custom', ['id' => 123]));
+        $this->assertEquals('custom_app:custom_env:v1:custom:123', $keyManager->make('custom_template', ['id' => 123]));
     }
     
     // ========== 基础缓存操作测试 ==========
@@ -212,51 +216,51 @@ class CacheKVTest extends TestCase
     
     public function testTemplateOperations()
     {
-        $userData = [
+        $testData = [
             'id' => 123,
-            'name' => 'John Doe',
-            'email' => 'john@example.com'
+            'name' => 'Test Data',
+            'value' => 'test_value'
         ];
         
         // 设置模板缓存
-        $this->assertTrue($this->cache->setByTemplate(CacheTemplates::USER, ['id' => 123], $userData));
+        $this->assertTrue($this->cache->setByTemplate(self::TEST_TEMPLATE_A, ['id' => 123], $testData));
         
         // 获取模板缓存
-        $result = $this->cache->getByTemplate(CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals($userData, $result);
+        $result = $this->cache->getByTemplate(self::TEST_TEMPLATE_A, ['id' => 123]);
+        $this->assertEquals($testData, $result);
         
         // 检查模板缓存是否存在
-        $this->assertTrue($this->cache->hasByTemplate(CacheTemplates::USER, ['id' => 123]));
+        $this->assertTrue($this->cache->hasByTemplate(self::TEST_TEMPLATE_A, ['id' => 123]));
         
         // 删除模板缓存
-        $this->assertTrue($this->cache->deleteByTemplate(CacheTemplates::USER, ['id' => 123]));
-        $this->assertNull($this->cache->getByTemplate(CacheTemplates::USER, ['id' => 123]));
-        $this->assertFalse($this->cache->hasByTemplate(CacheTemplates::USER, ['id' => 123]));
+        $this->assertTrue($this->cache->deleteByTemplate(self::TEST_TEMPLATE_A, ['id' => 123]));
+        $this->assertNull($this->cache->getByTemplate(self::TEST_TEMPLATE_A, ['id' => 123]));
+        $this->assertFalse($this->cache->hasByTemplate(self::TEST_TEMPLATE_A, ['id' => 123]));
     }
     
     public function testTemplateWithCallback()
     {
         $callbackExecuted = false;
-        $userData = [
+        $testData = [
             'id' => 456,
-            'name' => 'Jane Smith',
-            'email' => 'jane@example.com'
+            'name' => 'Callback Test Data',
+            'value' => 'callback_value'
         ];
         
-        $result = $this->cache->getByTemplate(CacheTemplates::USER, ['id' => 456], function() use (&$callbackExecuted, $userData) {
+        $result = $this->cache->getByTemplate(self::TEST_TEMPLATE_B, ['id' => 456], function() use (&$callbackExecuted, $testData) {
             $callbackExecuted = true;
-            return $userData;
+            return $testData;
         });
         
         $this->assertTrue($callbackExecuted);
-        $this->assertEquals($userData, $result);
+        $this->assertEquals($testData, $result);
         
         // 第二次调用应该从缓存获取
         $callbackExecuted = false;
-        $result2 = $this->cache->getByTemplate(CacheTemplates::USER, ['id' => 456]);
+        $result2 = $this->cache->getByTemplate(self::TEST_TEMPLATE_B, ['id' => 456]);
         
         $this->assertFalse($callbackExecuted);
-        $this->assertEquals($userData, $result2);
+        $this->assertEquals($testData, $result2);
     }
     
     // ========== 批量操作测试 ==========
@@ -295,59 +299,59 @@ class CacheKVTest extends TestCase
     
     public function testGetMultipleWithCallback()
     {
-        $keys = ['user:1', 'user:2', 'user:3'];
+        $keys = ['test:1', 'test:2', 'test:3'];
         $callbackExecuted = false;
         
         // 预设一个缓存
-        $this->cache->set('user:1', ['id' => 1, 'name' => 'User 1']);
+        $this->cache->set('test:1', ['id' => 1, 'name' => 'Test 1']);
         
         $result = $this->cache->getMultiple($keys, function($missingKeys) use (&$callbackExecuted) {
             $callbackExecuted = true;
-            $this->assertEquals(['user:2', 'user:3'], $missingKeys);
+            $this->assertEquals(['test:2', 'test:3'], $missingKeys);
             
             return [
-                'user:2' => ['id' => 2, 'name' => 'User 2'],
-                'user:3' => ['id' => 3, 'name' => 'User 3'],
+                'test:2' => ['id' => 2, 'name' => 'Test 2'],
+                'test:3' => ['id' => 3, 'name' => 'Test 3'],
             ];
         });
         
         $this->assertTrue($callbackExecuted);
         $this->assertCount(3, $result);
-        $this->assertEquals(['id' => 1, 'name' => 'User 1'], $result['user:1']);
-        $this->assertEquals(['id' => 2, 'name' => 'User 2'], $result['user:2']);
-        $this->assertEquals(['id' => 3, 'name' => 'User 3'], $result['user:3']);
+        $this->assertEquals(['id' => 1, 'name' => 'Test 1'], $result['test:1']);
+        $this->assertEquals(['id' => 2, 'name' => 'Test 2'], $result['test:2']);
+        $this->assertEquals(['id' => 3, 'name' => 'Test 3'], $result['test:3']);
     }
     
     // ========== 辅助函数测试 ==========
     
     public function testHelperFunctions()
     {
-        $userData = ['id' => 123, 'name' => 'Helper User'];
+        $testData = ['id' => 123, 'name' => 'Helper Test'];
         
         // 测试 cache_kv_set
-        $this->assertTrue(cache_kv_set(CacheTemplates::USER, ['id' => 123], $userData));
+        $this->assertTrue(cache_kv_set(self::TEST_TEMPLATE_A, ['id' => 123], $testData));
         
         // 测试 cache_kv_get
-        $result = cache_kv_get(CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals($userData, $result);
+        $result = cache_kv_get(self::TEST_TEMPLATE_A, ['id' => 123]);
+        $this->assertEquals($testData, $result);
         
         // 测试 cache_kv_delete
-        $this->assertTrue(cache_kv_delete(CacheTemplates::USER, ['id' => 123]));
-        $this->assertNull(cache_kv_get(CacheTemplates::USER, ['id' => 123]));
+        $this->assertTrue(cache_kv_delete(self::TEST_TEMPLATE_A, ['id' => 123]));
+        $this->assertNull(cache_kv_get(self::TEST_TEMPLATE_A, ['id' => 123]));
     }
     
     public function testHelperFunctionWithCallback()
     {
         $callbackExecuted = false;
-        $userData = ['id' => 456, 'name' => 'Helper Callback User'];
+        $testData = ['id' => 456, 'name' => 'Helper Callback Test'];
         
-        $result = cache_kv_get(CacheTemplates::USER, ['id' => 456], function() use (&$callbackExecuted, $userData) {
+        $result = cache_kv_get(self::TEST_TEMPLATE_B, ['id' => 456], function() use (&$callbackExecuted, $testData) {
             $callbackExecuted = true;
-            return $userData;
+            return $testData;
         });
         
         $this->assertTrue($callbackExecuted);
-        $this->assertEquals($userData, $result);
+        $this->assertEquals($testData, $result);
     }
     
     public function testHelperConfig()
@@ -356,14 +360,14 @@ class CacheKVTest extends TestCase
             'app_prefix' => 'helper_test',
             'env_prefix' => 'test_env',
             'templates' => [
-                'test' => 'test:{id}'
+                'test_tmpl' => 'test_tmpl:{id}'
             ]
         ]);
         
         $instance = cache_kv_instance();
         $keyManager = $instance->getKeyManager();
         
-        $this->assertEquals('helper_test:test_env:v1:test:123', $keyManager->make('test', ['id' => 123]));
+        $this->assertEquals('helper_test:test_env:v1:test_tmpl:123', $keyManager->make('test_tmpl', ['id' => 123]));
     }
     
     // ========== 标签管理测试 ==========
@@ -381,42 +385,42 @@ class CacheKVTest extends TestCase
     public function testClearTag()
     {
         // 设置多个带标签的缓存项
-        $this->cache->setWithTag('user:1', ['name' => 'User 1'], ['users']);
-        $this->cache->setWithTag('user:2', ['name' => 'User 2'], ['users']);
-        $this->cache->setWithTag('admin:1', ['name' => 'Admin 1'], ['admins']);
+        $this->cache->setWithTag('item:1', ['name' => 'Item 1'], ['group_a']);
+        $this->cache->setWithTag('item:2', ['name' => 'Item 2'], ['group_a']);
+        $this->cache->setWithTag('item:3', ['name' => 'Item 3'], ['group_b']);
         
         // 验证缓存存在
-        $this->assertTrue($this->cache->has('user:1'));
-        $this->assertTrue($this->cache->has('user:2'));
-        $this->assertTrue($this->cache->has('admin:1'));
+        $this->assertTrue($this->cache->has('item:1'));
+        $this->assertTrue($this->cache->has('item:2'));
+        $this->assertTrue($this->cache->has('item:3'));
         
-        // 清除 users 标签
-        $this->cache->clearTag('users');
+        // 清除 group_a 标签
+        $this->cache->clearTag('group_a');
         
-        // 验证 users 标签的缓存被清除，admins 标签的缓存仍然存在
-        $this->assertFalse($this->cache->has('user:1'));
-        $this->assertFalse($this->cache->has('user:2'));
-        $this->assertTrue($this->cache->has('admin:1'));
+        // 验证 group_a 标签的缓存被清除，group_b 标签的缓存仍然存在
+        $this->assertFalse($this->cache->has('item:1'));
+        $this->assertFalse($this->cache->has('item:2'));
+        $this->assertTrue($this->cache->has('item:3'));
     }
     
     // ========== 键管理测试 ==========
     
     public function testKeyGeneration()
     {
-        $key = $this->keyManager->make(CacheTemplates::USER, ['id' => 123]);
-        $this->assertEquals('test:phpunit:v1:user:123', $key);
+        $key = $this->keyManager->make(self::TEST_TEMPLATE_A, ['id' => 123]);
+        $this->assertEquals('test:phpunit:v1:tmpl_a:123', $key);
         
-        $sessionKey = $this->keyManager->make(CacheTemplates::SESSION, ['id' => 'abc123']);
-        $this->assertEquals('test:phpunit:v1:session:abc123', $sessionKey);
+        $key2 = $this->keyManager->make(self::TEST_TEMPLATE_C, ['id' => 'abc123']);
+        $this->assertEquals('test:phpunit:v1:tmpl_c:abc123', $key2);
     }
     
     public function testMakeKey()
     {
-        $key = $this->cache->makeKey(CacheTemplates::USER, ['id' => 456]);
-        $this->assertEquals('test:phpunit:v1:user:456', $key);
+        $key = $this->cache->makeKey(self::TEST_TEMPLATE_A, ['id' => 456]);
+        $this->assertEquals('test:phpunit:v1:tmpl_a:456', $key);
         
-        $keyWithoutPrefix = $this->cache->makeKey(CacheTemplates::USER, ['id' => 456], false);
-        $this->assertEquals('user:456', $keyWithoutPrefix);
+        $keyWithoutPrefix = $this->cache->makeKey(self::TEST_TEMPLATE_A, ['id' => 456], false);
+        $this->assertEquals('tmpl_a:456', $keyWithoutPrefix);
     }
     
     // ========== TTL 测试 ==========
@@ -458,10 +462,16 @@ class CacheKVTest extends TestCase
         $driver = new ArrayDriver();
         $cache = new CacheKV($driver, 3600);
         
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('KeyManager not set');
+        // 现在支持无 KeyManager 的情况，会生成简单键
+        $result = $cache->getByTemplate('any_template', ['id' => 123], function() {
+            return ['id' => 123, 'data' => 'test'];
+        });
         
-        $cache->getByTemplate(CacheTemplates::USER, ['id' => 123]);
+        $this->assertEquals(['id' => 123, 'data' => 'test'], $result);
+        
+        // 验证生成的键
+        $key = $cache->makeKey('any_template', ['id' => 123]);
+        $this->assertEquals('any_template:123', $key);
     }
     
     public function testInvalidTemplate()

@@ -128,6 +128,12 @@ class CacheKVFactory
             $config['driver'] = new ArrayDriver();
         }
         
-        return self::createFromConfig($config);
+        // 只有在有模板配置时才创建 KeyManager
+        if (!empty($config['templates'])) {
+            return self::createFromConfig($config);
+        }
+        
+        // 零配置模式：不创建 KeyManager
+        return new CacheKV($config['driver'], $config['ttl']);
     }
 }

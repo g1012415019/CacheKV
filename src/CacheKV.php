@@ -264,11 +264,14 @@ class CacheKV
      * @param callable|null $callback 回调函数
      * @param int|null $ttl 缓存时间
      * @return mixed
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function getByTemplate($template, $params = [], $callback = null, $ttl = null)
     {
-        $this->ensureKeyManagerSet();
+        // 如果没有 KeyManager，直接使用模板名作为键
+        if (!$this->keyManager) {
+            $key = $this->generateSimpleKey($template, $params);
+            return $this->get($key, $callback, $ttl);
+        }
         
         $key = $this->keyManager->make($template, $params);
         return $this->get($key, $callback, $ttl);
@@ -282,11 +285,13 @@ class CacheKV
      * @param mixed $value 值
      * @param int|null $ttl 缓存时间
      * @return bool
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function setByTemplate($template, $params = [], $value = null, $ttl = null)
     {
-        $this->ensureKeyManagerSet();
+        if (!$this->keyManager) {
+            $key = $this->generateSimpleKey($template, $params);
+            return $this->set($key, $value, $ttl);
+        }
         
         $key = $this->keyManager->make($template, $params);
         return $this->set($key, $value, $ttl);
@@ -301,11 +306,13 @@ class CacheKV
      * @param array $tags 标签
      * @param int|null $ttl 缓存时间
      * @return bool
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function setByTemplateWithTag($template, $params = [], $value = null, $tags = [], $ttl = null)
     {
-        $this->ensureKeyManagerSet();
+        if (!$this->keyManager) {
+            $key = $this->generateSimpleKey($template, $params);
+            return $this->setWithTag($key, $value, $tags, $ttl);
+        }
         
         $key = $this->keyManager->make($template, $params);
         return $this->setWithTag($key, $value, $tags, $ttl);
@@ -317,11 +324,13 @@ class CacheKV
      * @param string $template 模板名称
      * @param array $params 参数
      * @return bool
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function deleteByTemplate($template, $params = [])
     {
-        $this->ensureKeyManagerSet();
+        if (!$this->keyManager) {
+            $key = $this->generateSimpleKey($template, $params);
+            return $this->delete($key);
+        }
         
         $key = $this->keyManager->make($template, $params);
         return $this->delete($key);
@@ -333,7 +342,6 @@ class CacheKV
      * @param string $template 模板名称
      * @param array $params 参数
      * @return bool
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function forgetByTemplate($template, $params = [])
     {
@@ -346,11 +354,13 @@ class CacheKV
      * @param string $template 模板名称
      * @param array $params 参数
      * @return bool
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function hasByTemplate($template, $params = [])
     {
-        $this->ensureKeyManagerSet();
+        if (!$this->keyManager) {
+            $key = $this->generateSimpleKey($template, $params);
+            return $this->has($key);
+        }
         
         $key = $this->keyManager->make($template, $params);
         return $this->has($key);
@@ -363,11 +373,12 @@ class CacheKV
      * @param array $params 参数
      * @param bool $withPrefix 是否包含前缀
      * @return string
-     * @throws \RuntimeException 当 KeyManager 未设置时
      */
     public function makeKey($template, $params = [], $withPrefix = true)
     {
-        $this->ensureKeyManagerSet();
+        if (!$this->keyManager) {
+            return $this->generateSimpleKey($template, $params);
+        }
         
         return $this->keyManager->make($template, $params, $withPrefix);
     }
@@ -482,7 +493,7 @@ class CacheKV
     }
 
     /**
-     * 确保 KeyManager 已设置
+     * 确保 KeyManager 已设置（仅在需要时检查）
      *
      * @throws \RuntimeException 当 KeyManager 未设置时
      */
@@ -491,5 +502,26 @@ class CacheKV
         if (!$this->keyManager) {
             throw new \RuntimeException('KeyManager not set. Please set KeyManager first.');
         }
+    }
+    
+    /**
+     * 生成简单的缓存键（无 KeyManager 时使用）
+     *
+     * @param string $template 模板名称
+     * @param array $params 参数
+     * @return string
+     */
+    private function generateSimpleKey($template, $params = [])
+    {
+        if (empty($params)) {
+            return $template;
+        }
+        
+        $keyParts = [$template];
+        foreach ($params as $value) {
+            $keyParts[] = (string) $value;
+        }
+        
+        return implode(':', $keyParts);
     }
 }

@@ -18,8 +18,8 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实�
 **CacheKV 让这一切变得简单：**
 ```php
 // 一行代码搞定：检查缓存 → 未命中则获取数据 → 自动回填缓存
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return getUserFromDatabase(123); // 只在缓存未命中时执行
+$data = cache_kv_get('data_item', ['id' => 123], function() {
+    return getDataFromDatabase(123); // 只在缓存未命中时执行
 });
 ```
 
@@ -38,11 +38,11 @@ composer require asfop/cache-kv
 require_once 'vendor/autoload.php';
 
 // 零配置，直接使用
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return ['id' => 123, 'name' => 'John Doe', 'email' => 'john@example.com'];
+$data = cache_kv_get('data_item', ['id' => 123], function() {
+    return ['id' => 123, 'name' => 'Sample Data', 'value' => 'sample_value'];
 });
 
-echo "用户信息: " . json_encode($user);
+echo "数据信息: " . json_encode($data);
 ```
 
 ### 推荐配置（一行搞定）
@@ -53,19 +53,19 @@ cache_kv_config([
     'app_prefix' => 'myapp',
     'env_prefix' => 'prod',
     'templates' => [
-        'user' => 'user:{id}',
-        'product' => 'product:{id}',
-        'order' => 'order:{id}',
+        'item' => 'item:{id}',
+        'record' => 'record:{type}:{id}',
+        'content' => 'content:{category}:{id}',
     ]
 ]);
 
 // 然后在任何地方直接使用
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
+$item = cache_kv_get('item', ['id' => 123], function() {
+    return getItemFromDatabase(123);
 });
 
-$product = cache_kv_get('product', ['id' => 456], function() {
-    return getProductFromDatabase(456);
+$record = cache_kv_get('record', ['type' => 'log', 'id' => 456], function() {
+    return getRecordFromDatabase('log', 456);
 });
 ```
 
@@ -76,8 +76,8 @@ $product = cache_kv_get('product', ['id' => 456], function() {
 ```php
 // 缓存存在：直接返回缓存数据
 // 缓存不存在：执行回调函数获取数据，自动写入缓存后返回
-$product = cache_kv_get('product', ['id' => 1], function() {
-    return getProductFromDatabase(1);
+$item = cache_kv_get('item', ['id' => 1], function() {
+    return getItemFromDatabase(1);
 });
 ```
 
@@ -85,14 +85,14 @@ $product = cache_kv_get('product', ['id' => 1], function() {
 
 ```php
 $cache = cache_kv_instance();
-$userIds = [1, 2, 3, 4, 5];
-$userKeys = array_map(function($id) use ($cache) {
-    return $cache->makeKey('user', ['id' => $id]);
-}, $userIds);
+$itemIds = [1, 2, 3, 4, 5];
+$itemKeys = array_map(function($id) use ($cache) {
+    return $cache->makeKey('item', ['id' => $id]);
+}, $itemIds);
 
 // 自动处理：部分命中缓存，部分从数据源获取
-$users = $cache->getMultiple($userKeys, function($missingKeys) {
-    return getUsersFromDatabase($missingKeys);
+$items = $cache->getMultiple($itemKeys, function($missingKeys) {
+    return getItemsFromDatabase($missingKeys);
 });
 ```
 
@@ -102,10 +102,10 @@ $users = $cache->getMultiple($userKeys, function($missingKeys) {
 $cache = cache_kv_instance();
 
 // 设置带标签的缓存
-$cache->setWithTag('user:1', $userData, ['users', 'vip_users']);
+$cache->setWithTag('item:1', $itemData, ['items', 'active_items']);
 
-// 批量清除：一次清除所有用户相关缓存
-cache_kv_clear_tag('users');
+// 批量清除：一次清除所有相关缓存
+cache_kv_clear_tag('items');
 ```
 
 ### 4. 统一键管理
@@ -113,8 +113,8 @@ cache_kv_clear_tag('users');
 ```php
 $cache = cache_kv_instance();
 
-// 标准化的键生成：myapp:prod:v1:user:123
-$userKey = $cache->makeKey('user', ['id' => 123]);
+// 标准化的键生成：myapp:prod:v1:item:123
+$itemKey = $cache->makeKey('item', ['id' => 123]);
 
 // 环境隔离：开发、测试、生产环境自动隔离
 // 版本管理：数据结构变更时版本号隔离
@@ -126,8 +126,8 @@ $userKey = $cache->makeKey('user', ['id' => 123]);
 
 ```php
 // 无需任何配置，直接使用
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
+$data = cache_kv_get('data_item', ['id' => 123], function() {
+    return getDataFromDatabase(123);
 });
 ```
 
@@ -141,15 +141,15 @@ cache_kv_config([
     'version' => 'v1',
     'ttl' => 3600,
     'templates' => [
-        'user' => 'user:{id}',
-        'product' => 'product:{id}',
-        'order' => 'order:{user_id}:{id}',
+        'item' => 'item:{id}',
+        'record' => 'record:{type}:{id}',
+        'content' => 'content:{category}:{id}',
     ]
 ]);
 
 // 然后在任何地方直接使用
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
+$item = cache_kv_get('item', ['id' => 123], function() {
+    return getItemFromDatabase(123);
 });
 ```
 
@@ -158,21 +158,21 @@ $user = cache_kv_get('user', ['id' => 123], function() {
 ```php
 use Asfop\CacheKV\CacheKVFactory;
 
-// 用户服务缓存
-$userCache = CacheKVFactory::quick([
-    'profile' => 'profile:{id}',
-    'settings' => 'settings:{id}',
+// 服务A缓存
+$serviceACache = CacheKVFactory::quick([
+    'entity' => 'entity:{id}',
+    'relation' => 'relation:{from}:{to}',
 ], [
-    'app_prefix' => 'user-service',
+    'app_prefix' => 'service-a',
     'ttl' => 1800
 ]);
 
-// 订单服务缓存
-$orderCache = CacheKVFactory::quick([
-    'order' => 'order:{id}',
-    'items' => 'items:{order_id}',
+// 服务B缓存
+$serviceBCache = CacheKVFactory::quick([
+    'resource' => 'resource:{id}',
+    'metadata' => 'meta:{resource_id}',
 ], [
-    'app_prefix' => 'order-service',
+    'app_prefix' => 'service-b',
     'ttl' => 3600
 ]);
 ```
@@ -192,8 +192,8 @@ cache_kv_config([
     ),
     'app_prefix' => 'myapp',
     'templates' => [
-        'user' => 'user:{id}',
-        'product' => 'product:{id}',
+        'item' => 'item:{id}',
+        'record' => 'record:{type}:{id}',
     ]
 ]);
 ```
@@ -202,40 +202,41 @@ cache_kv_config([
 
 ```php
 // 默认使用 Array 驱动，无需额外配置
-$user = cache_kv_get('user', ['id' => 123], function() {
-    return getUserFromDatabase(123);
+$data = cache_kv_get('data_item', ['id' => 123], function() {
+    return getDataFromDatabase(123);
 });
 ```
 
 ## 🎨 实际应用场景
 
-### 用户信息缓存
+### 数据项缓存
 ```php
-function getUserInfo($userId) {
-    return cache_kv_get('user', ['id' => $userId], function() use ($userId) {
-        return getUserFromDatabase($userId);
+function getDataItem($itemId) {
+    return cache_kv_get('item', ['id' => $itemId], function() use ($itemId) {
+        return getItemFromDatabase($itemId);
     });
 }
 
 // 使用
-$user = getUserInfo(123);
+$item = getDataItem(123);
 ```
 
 ### API 响应缓存
 ```php
-function getWeather($city) {
-    return cache_kv_get('weather', ['city' => $city], function() use ($city) {
-        return callWeatherAPI($city);
+function getApiResult($endpoint, $params) {
+    $paramsHash = md5(json_encode($params));
+    return cache_kv_get('api_result', ['endpoint' => $endpoint, 'params_hash' => $paramsHash], function() use ($endpoint, $params) {
+        return callExternalAPI($endpoint, $params);
     }, 1800); // 30分钟缓存
 }
 
 // 使用
-$weather = getWeather('Beijing');
+$result = getApiResult('data_service', ['type' => 'list']);
 ```
 
 ### 计算结果缓存
 ```php
-function getExpensiveCalculation($params) {
+function getCalculationResult($params) {
     $key = md5(json_encode($params));
     return cache_kv_get('calculation', ['key' => $key], function() use ($params) {
         // 复杂计算
@@ -271,8 +272,8 @@ cache_kv_config([
     'app_prefix' => 'myapp',
     'env_prefix' => getenv('APP_ENV') ?: 'production',
     'templates' => [
-        'user' => 'user:{id}',
-        'product' => 'product:{id}',
+        'item' => 'item:{id}',
+        'record' => 'record:{type}:{id}',
     ]
 ]);
 ```
@@ -284,7 +285,7 @@ cache_kv_config([
 | 单条查询 | 每次查数据库 | 缓存命中直接返回 | **10-100x** |
 | 批量查询 | N次数据库查询 | 1次批量查询 | **10-1000x** |
 | 相关缓存清理 | 手动逐个清除 | 标签批量清除 | **维护性大幅提升** |
-| 键名管理 | 字符串硬编码 | 常量统一管理 | **可维护性大幅提升** |
+| 键名管理 | 字符串硬编码 | 模板统一管理 | **可维护性大幅提升** |
 
 ## 📈 核心优势
 
@@ -307,10 +308,11 @@ cache_kv_config([
 - **多种配置方式**：从零配置到完全自定义
 - **多实例支持**：支持微服务架构
 - **框架友好**：完美集成各种 PHP 框架
+- **无业务耦合**：通用设计，适用于任何业务场景
 
 ## 🏆 适用场景
 
-- **用户管理系统** - 用户信息、权限、会话缓存
+- **数据管理系统** - 各种数据项、记录、内容缓存
 - **电商平台** - 商品信息、价格、库存缓存
 - **内容管理系统** - 文章、评论、分类缓存
 - **API 服务** - 外部 API 响应缓存
