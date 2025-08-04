@@ -5,6 +5,38 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.2] - 2024-08-04
+
+### 🔧 重要修复
+
+#### 🐛 修复
+- **PHP 7.0兼容性**: 移除所有参数类型声明，确保在PHP 7.0环境中正常运行
+- **语法兼容性**: 修复构造函数和方法的类型声明问题
+- **类型声明**: 移除了16处不兼容的类型声明
+
+#### 📁 修复文件
+- `src/Configuration/KeyConfig.php`
+- `src/Configuration/CacheKVConfig.php`
+- `src/Core/CacheKV.php`
+- `src/Core/ConfigManager.php`
+- `src/Key/CacheKey.php`
+- `src/Key/GroupKeyBuilder.php`
+- `src/Tag/CacheTagManager.php`
+
+#### ✅ 验证
+- 所有PHP文件语法检查通过
+- 类加载测试通过
+- 确保兼容PHP 7.0+
+
+**这是一个重要的修复版本，强烈建议所有用户更新。**
+
+### 📦 安装
+```bash
+composer require asfop1/cache-kv
+```
+
+---
+
 ## [1.0.1] - 2024-08-04
 
 ### 📚 文档更新
