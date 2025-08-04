@@ -3,10 +3,10 @@
 namespace Asfop\CacheKV\Stats;
 
 /**
- * 键统计管理 - 直接Redis存储
+ * 键统计管理 - 简化版
  * 
- * 每次统计操作直接写入Redis，不依赖内存缓存
- * 兼容 PHP 7.0
+ * 假设Redis支持所有需要的功能，专注性能优化
+ * 统计操作失败时不影响主功能
  */
 class KeyStats
 {
@@ -86,13 +86,18 @@ class KeyStats
         }
         
         try {
-            // 增加全局命中计数
-            self::incrementGlobalCounter('hits', count($keys));
+            $count = count($keys);
             
-            // 增加热点键计数
+            // 使用Pipeline批量操作
+            $pipe = self::$driver->pipeline();
+            $pipe->incrBy(self::$statsPrefix . 'hits', $count);
+            
+            // 批量更新热点键（使用Redis Sorted Set）
             foreach ($keys as $key) {
-                self::incrementHotKeyCounter($key);
+                $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
             }
+            
+            $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略，不影响主要功能
         }
@@ -110,13 +115,17 @@ class KeyStats
         }
         
         try {
-            // 增加全局未命中计数
-            self::incrementGlobalCounter('misses', count($keys));
+            $count = count($keys);
             
-            // 增加热点键计数（未命中也算访问）
+            $pipe = self::$driver->pipeline();
+            $pipe->incrBy(self::$statsPrefix . 'misses', $count);
+            
+            // 未命中也算访问，记录到热点键
             foreach ($keys as $key) {
-                self::incrementHotKeyCounter($key);
+                $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
             }
+            
+            $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -134,8 +143,8 @@ class KeyStats
         }
         
         try {
-            // 增加全局设置计数
-            self::incrementGlobalCounter('sets', count($keys));
+            $count = count($keys);
+            self::$driver->incrBy(self::$statsPrefix . 'sets', $count);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -153,8 +162,11 @@ class KeyStats
         }
         
         try {
-            self::incrementGlobalCounter('hits', 1);
-            self::incrementHotKeyCounter($key);
+            // 使用Pipeline优化
+            $pipe = self::$driver->pipeline();
+            $pipe->incrBy(self::$statsPrefix . 'hits', 1);
+            $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+            $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -172,8 +184,10 @@ class KeyStats
         }
         
         try {
-            self::incrementGlobalCounter('misses', 1);
-            self::incrementHotKeyCounter($key);
+            $pipe = self::$driver->pipeline();
+            $pipe->incrBy(self::$statsPrefix . 'misses', 1);
+            $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+            $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -191,7 +205,7 @@ class KeyStats
         }
         
         try {
-            self::incrementGlobalCounter('sets', 1);
+            self::$driver->incrBy(self::$statsPrefix . 'sets', 1);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -209,7 +223,7 @@ class KeyStats
         }
         
         try {
-            self::incrementGlobalCounter('deletes', 1);
+            self::$driver->incrBy(self::$statsPrefix . 'deletes', 1);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -228,10 +242,10 @@ class KeyStats
         
         try {
             $stats = array(
-                'hits' => self::getGlobalCounter('hits'),
-                'misses' => self::getGlobalCounter('misses'),
-                'sets' => self::getGlobalCounter('sets'),
-                'deletes' => self::getGlobalCounter('deletes'),
+                'hits' => (int)self::$driver->get(self::$statsPrefix . 'hits') ?: 0,
+                'misses' => (int)self::$driver->get(self::$statsPrefix . 'misses') ?: 0,
+                'sets' => (int)self::$driver->get(self::$statsPrefix . 'sets') ?: 0,
+                'deletes' => (int)self::$driver->get(self::$statsPrefix . 'deletes') ?: 0,
             );
             
             // 计算命中率
@@ -260,20 +274,18 @@ class KeyStats
         }
         
         try {
-            $hotKeysData = self::$driver->get(self::$statsPrefix . 'hot_keys');
-            if ($hotKeysData) {
-                $hotKeys = json_decode($hotKeysData, true);
-                if (is_array($hotKeys)) {
-                    // 按访问次数排序
-                    arsort($hotKeys);
-                    return array_slice($hotKeys, 0, $limit, true);
-                }
-            }
+            // 使用Redis Sorted Set的ZREVRANGE命令
+            $result = self::$driver->zRevRange(
+                self::$statsPrefix . 'hot_keys', 
+                0, 
+                $limit - 1, 
+                true // 返回分数
+            );
+            
+            return is_array($result) ? $result : array();
         } catch (Exception $e) {
-            // Redis操作失败时返回空数组
+            return array();
         }
-        
-        return array();
     }
 
     /**
@@ -286,7 +298,6 @@ class KeyStats
         }
         
         try {
-            // 清空所有统计相关的键
             $keys = array('hits', 'misses', 'sets', 'deletes', 'hot_keys');
             foreach ($keys as $key) {
                 self::$driver->delete(self::$statsPrefix . $key);
@@ -294,73 +305,5 @@ class KeyStats
         } catch (Exception $e) {
             // 忽略Redis操作失败
         }
-    }
-
-    /**
-     * 增加全局计数器
-     * 
-     * @param string $type 计数器类型
-     * @param int $increment 增加数量
-     */
-    private static function incrementGlobalCounter($type, $increment = 1)
-    {
-        $key = self::$statsPrefix . $type;
-        
-        // 尝试使用Redis的INCRBY命令
-        if (method_exists(self::$driver, 'incrBy')) {
-            self::$driver->incrBy($key, $increment);
-            self::$driver->expire($key, self::$statsTtl);
-        } else {
-            // 降级方案：GET -> 计算 -> SET
-            $current = self::$driver->get($key);
-            $current = $current ? (int)$current : 0;
-            $new = $current + $increment;
-            self::$driver->set($key, $new, self::$statsTtl);
-        }
-    }
-
-    /**
-     * 获取全局计数器值
-     * 
-     * @param string $type 计数器类型
-     * @return int 计数器值
-     */
-    private static function getGlobalCounter($type)
-    {
-        $key = self::$statsPrefix . $type;
-        $value = self::$driver->get($key);
-        return $value ? (int)$value : 0;
-    }
-
-    /**
-     * 增加热点键计数器
-     * 
-     * @param string $key 缓存键
-     */
-    private static function incrementHotKeyCounter($key)
-    {
-        $hotKeysKey = self::$statsPrefix . 'hot_keys';
-        
-        // 获取当前热点键数据
-        $hotKeysData = self::$driver->get($hotKeysKey);
-        $hotKeys = $hotKeysData ? json_decode($hotKeysData, true) : array();
-        if (!is_array($hotKeys)) {
-            $hotKeys = array();
-        }
-        
-        // 增加计数
-        if (!isset($hotKeys[$key])) {
-            $hotKeys[$key] = 0;
-        }
-        $hotKeys[$key]++;
-        
-        // 只保留前100个热点键（避免数据过大）
-        if (count($hotKeys) > 100) {
-            arsort($hotKeys);
-            $hotKeys = array_slice($hotKeys, 0, 100, true);
-        }
-        
-        // 保存回Redis
-        self::$driver->set($hotKeysKey, json_encode($hotKeys), self::$statsTtl);
     }
 }
