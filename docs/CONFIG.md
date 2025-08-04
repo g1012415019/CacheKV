@@ -41,12 +41,22 @@ return array(
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `enable_stats` | `bool` | `true` | 是否启用统计功能 |
+| `stats_prefix` | `string` | `'cachekv:stats:'` | 统计数据Redis键前缀 |
+| `stats_ttl` | `int` | `604800` | 统计数据TTL（秒，默认7天） |
 
 ```php
 'cache' => array(
-    'enable_stats' => true,             // 启用统计（推荐）
+    'enable_stats' => true,                 // 启用统计（推荐）
+    'stats_prefix' => 'cachekv:stats:',     // 统计数据Redis键前缀
+    'stats_ttl' => 604800,                  // 统计数据TTL（7天）
 ),
 ```
+
+**配置说明：**
+
+- **`enable_stats`**：控制是否启用统计功能，关闭后可以提升性能
+- **`stats_prefix`**：统计数据在Redis中的键前缀，用于环境隔离
+- **`stats_ttl`**：统计数据的生存时间，过期后自动清理
 
 ### 热点键自动续期配置
 
@@ -231,9 +241,11 @@ return array(
 ```php
 return array(
     'cache' => array(
-        'ttl' => 300,                   // 开发环境短缓存
-        'enable_stats' => true,         // 启用统计便于调试
-        'hot_key_auto_renewal' => false, // 关闭自动续期
+        'ttl' => 300,                       // 开发环境短缓存
+        'enable_stats' => true,             // 启用统计便于调试
+        'stats_prefix' => 'dev:cachekv:stats:', // 开发环境前缀
+        'stats_ttl' => 86400,               // 开发环境1天TTL
+        'hot_key_auto_renewal' => false,    // 关闭自动续期
     ),
     'key_manager' => array(
         'app_prefix' => 'dev_myapp',    // 开发环境前缀
@@ -246,10 +258,12 @@ return array(
 ```php
 return array(
     'cache' => array(
-        'ttl' => 3600,                  // 生产环境长缓存
-        'enable_stats' => true,         // 启用统计监控性能
-        'hot_key_auto_renewal' => true, // 启用自动续期
-        'hot_key_threshold' => 1000,    // 生产环境更高阈值
+        'ttl' => 3600,                      // 生产环境长缓存
+        'enable_stats' => true,             // 启用统计监控性能
+        'stats_prefix' => 'prod:cachekv:stats:', // 生产环境前缀
+        'stats_ttl' => 2592000,             // 生产环境30天TTL
+        'hot_key_auto_renewal' => true,     // 启用自动续期
+        'hot_key_threshold' => 1000,        // 生产环境更高阈值
     ),
     'key_manager' => array(
         'app_prefix' => 'prod_myapp',   // 生产环境前缀
@@ -262,8 +276,9 @@ return array(
 ```php
 return array(
     'cache' => array(
-        'ttl' => 60,                    // 测试环境极短缓存
-        'enable_stats' => false,        // 关闭统计减少干扰
+        'ttl' => 60,                        // 测试环境极短缓存
+        'enable_stats' => false,            // 关闭统计减少干扰
+        'stats_prefix' => 'test:cachekv:stats:', // 测试环境前缀
         'hot_key_auto_renewal' => false,
     ),
     'key_manager' => array(
