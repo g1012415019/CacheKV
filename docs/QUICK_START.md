@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-composer require asfop/cache-kv
+composer require asfop1/cache-kv
 ```
 
 ## 基础配置
@@ -222,4 +222,4 @@ foreach ($hotKeys as $key => $info) {
 
 - 阅读 [完整文档](README.md) 了解更多功能
 - 查看 [配置参考](CONFIG.md) 了解所有配置选项
-- 学习 [最佳实践](BEST_PRACTICES.md) 优化性能
+- 学习 [统计功能](STATS.md) 进行性能监控
