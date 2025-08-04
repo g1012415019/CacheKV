@@ -283,8 +283,17 @@ class CacheKV
                 $batchSetData = array(); // 用于批量设置缓存
                 $setKeyStrings = array(); // 用于批量统计
                 
-                // 如果回调返回的是关联数组（键字符串 => 数据）
-                if (!empty($callbackResults) && is_string(key($callbackResults))) {
+                // 检测数组格式：连续索引数组 vs 关联数组
+                $isEmpty = empty($callbackResults);
+                $isSequentialArray = false;
+                
+                if (!$isEmpty) {
+                    $keys = array_keys($callbackResults);
+                    $isSequentialArray = ($keys === range(0, count($callbackResults) - 1));
+                }
+                
+                if (!$isEmpty && !$isSequentialArray) {
+                    // 关联数组格式：键字符串 => 数据
                     foreach ($callbackResults as $keyString => $data) {
                         if (isset($keyMap[$keyString])) {
                             $cacheKey = $keyMap[$keyString];
@@ -300,8 +309,8 @@ class CacheKV
                             $finalResults[$keyString] = $data;
                         }
                     }
-                } else {
-                    // 如果回调返回的是索引数组，按顺序匹配
+                } else if (!$isEmpty) {
+                    // 索引数组格式：按顺序匹配
                     $index = 0;
                     foreach ($missedKeys as $cacheKey) {
                         if (isset($callbackResults[$index])) {
