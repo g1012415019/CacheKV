@@ -30,54 +30,24 @@ if (!function_exists('cache_kv_get_multiple')) {
     /**
      * 批量获取缓存
      * 
-     * 支持两种调用方式：
-     * 1. 简洁方式：cache_kv_get_multiple('user.profile', [1, 2, 3], $callback)
-     * 2. 复杂方式：cache_kv_get_multiple('user.profile', [['id'=>1,'sex'=>'M'], ['id'=>2,'sex'=>'F']], $callback)
-     * 3. 传统方式：cache_kv_get_multiple([['template'=>'user.profile', 'params'=>['id'=>1]], ...], $callback)
-     * 
-     * @param string|array $template 模板名称或传统格式数组
-     * @param array|callable|null $params 参数数组或回调函数（传统格式时）
+     * @param string $template 模板名称，如 'user.profile'
+     * @param array $paramsList 参数数组列表，每个元素必须是数组
      * @param callable|null $callback 回调函数
      * @return array 结果数组
      */
-    function cache_kv_get_multiple($template, $params = null, $callback = null)
+    function cache_kv_get_multiple($template, array $paramsList, $callback = null)
     {
-        $cache = CacheKVFactory::getInstance();
-        $cacheKeys = array();
-
-        // 传统格式：第一个参数是数组
-        if (is_array($template)) {
-            $templates = $template;
-            $callback = $params; // 第二个参数是回调函数
-            
-            if (empty($templates)) {
-                return array();
-            }
-
-            // 创建CacheKey对象数组
-            foreach ($templates as $tmpl) {
-                if (isset($tmpl['template'])) {
-                    $tmplParams = isset($tmpl['params']) ? $tmpl['params'] : array();
-                    $cacheKeys[] = cache_kv_make_key($tmpl['template'], $tmplParams);
-                }
-            }
-
-            return $cache->getMultiple($cacheKeys, $callback);
-        }
-
-        // 新格式：template是字符串
-        if (!is_string($template) || empty($params) || !is_array($params)) {
+        if (empty($paramsList)) {
             return array();
         }
 
+        $cache = CacheKVFactory::getInstance();
+        $cacheKeys = array();
+
         // 构建CacheKey数组
-        foreach ($params as $param) {
-            if (is_array($param)) {
-                // 复杂参数：['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M']
-                $cacheKeys[] = cache_kv_make_key($template, $param);
-            } else {
-                // 简单参数：假设是ID
-                $cacheKeys[] = cache_kv_make_key($template, array('id' => $param));
+        foreach ($paramsList as $params) {
+            if (is_array($params)) {
+                $cacheKeys[] = cache_kv_make_key($template, $params);
             }
         }
 
