@@ -74,32 +74,30 @@ $item = cache_kv_get('user.profile', ['id' => 1], function() {
 
 ### 2. 批量操作优化
 ```php
-// 🔥 改进：cache_kv_get_multiple 支持多种简洁用法
+// 🔥 新的简洁调用方式
 
-// 方式1：最简洁 - 直接传ID数组
-$users = cache_kv_get_multiple(['user.profile' => [1, 2, 3]], function($missedParams) {
-    // $missedParams = [['id' => 1], ['id' => 3]] (假设id=2命中缓存)
-    $ids = array_column($missedParams, 'id');
-    return getUsersFromDatabase($ids);
+// 1. 简单ID批量获取
+$users = cache_kv_get_multiple('user.profile', [1, 2, 3], function($missedKeys) {
+    return getUsersFromDatabase($missedKeys);
 });
 
-// 方式2：简洁 - 传参数数组
-$users = cache_kv_get_multiple(['user.profile' => [
-    ['id' => 1],
-    ['id' => 2], 
-    ['id' => 3]
-]], function($missedParams) {
-    return getUsersFromDatabase($missedParams);
+// 2. 复杂参数批量获取
+$reports = cache_kv_get_multiple('report.daily', [
+    ['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M'],
+    ['id' => 2, 'ymd' => '20240804', 'uid' => 456, 'sex' => 'F'],
+    ['id' => 3, 'ymd' => '20240805', 'uid' => 789, 'sex' => 'M']
+], function($missedKeys) {
+    return getReportsFromDatabase($missedKeys);
 });
 
-// 方式3：传统方式（向后兼容）
+// 3. 传统方式（向后兼容）
 $templates = [
     ['template' => 'user.profile', 'params' => ['id' => 1]],
     ['template' => 'user.profile', 'params' => ['id' => 2]],
     ['template' => 'user.profile', 'params' => ['id' => 3]]
 ];
-$users = cache_kv_get_multiple($templates, function($missedParams) {
-    return getUsersFromDatabase($missedParams);
+$users = cache_kv_get_multiple($templates, function($missedKeys) {
+    return getUsersFromDatabase($missedKeys);
 });
 ```
 
@@ -194,22 +192,20 @@ function getApiResult($endpoint, $params) {
 ```php
 function getUserProfiles($userIds) {
     // 🔥 新的简洁写法
-    return cache_kv_get_multiple(['user.profile' => $userIds], function($missedParams) {
+    return cache_kv_get_multiple('user.profile', $userIds, function($missedKeys) {
         // 批量从数据库获取未命中的用户
-        $missedIds = array_column($missedParams, 'id');
-        return batchGetUsersFromDatabase($missedIds);
+        return batchGetUsersFromDatabase($missedKeys);
     });
 }
 
-// 或者传统写法（向后兼容）
-function getUserProfilesOld($userIds) {
-    $templates = [];
-    foreach ($userIds as $id) {
-        $templates[] = ['template' => 'user.profile', 'params' => ['id' => $id]];
-    }
-    
-    return cache_kv_get_multiple($templates, function($missedParams) {
-        return batchGetUsersFromDatabase($missedParams);
+function getDailyReports($reportParams) {
+    // 复杂参数批量获取
+    return cache_kv_get_multiple('report.daily', $reportParams, function($missedKeys) {
+        // $reportParams = [
+        //     ['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M'],
+        //     ['id' => 2, 'ymd' => '20240804', 'uid' => 456, 'sex' => 'F']
+        // ]
+        return batchGetReportsFromDatabase($missedKeys);
     });
 }
 ```

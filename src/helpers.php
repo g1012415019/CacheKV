@@ -29,78 +29,59 @@ if (!function_exists('cache_kv_get')) {
 if (!function_exists('cache_kv_get_multiple')) {
     /**
      * 批量获取缓存
-     * 支持多种调用方式：
-     * 1. 传统方式：[['template' => 'user.profile', 'params' => ['id' => 1]], ...]
-     * 2. 简洁方式：['user.profile' => [['id' => 1], ['id' => 2], ['id' => 3]]]
-     * 3. 最简方式：['user.profile' => [1, 2, 3]] (自动转换为 ['id' => value])
      * 
-     * @param array $templates 模板数组，支持多种格式
+     * 支持两种调用方式：
+     * 1. 简洁方式：cache_kv_get_multiple('user.profile', [1, 2, 3], $callback)
+     * 2. 复杂方式：cache_kv_get_multiple('user.profile', [['id'=>1,'sex'=>'M'], ['id'=>2,'sex'=>'F']], $callback)
+     * 3. 传统方式：cache_kv_get_multiple([['template'=>'user.profile', 'params'=>['id'=>1]], ...], $callback)
+     * 
+     * @param string|array $template 模板名称或传统格式数组
+     * @param array|callable|null $params 参数数组或回调函数（传统格式时）
      * @param callable|null $callback 回调函数
      * @return array 结果数组
      */
-    function cache_kv_get_multiple(array $templates, $callback = null)
+    function cache_kv_get_multiple($template, $params = null, $callback = null)
     {
-        if (empty($templates)) {
+        $cache = CacheKVFactory::getInstance();
+        $cacheKeys = array();
+
+        // 传统格式：第一个参数是数组
+        if (is_array($template)) {
+            $templates = $template;
+            $callback = $params; // 第二个参数是回调函数
+            
+            if (empty($templates)) {
+                return array();
+            }
+
+            // 创建CacheKey对象数组
+            foreach ($templates as $tmpl) {
+                if (isset($tmpl['template'])) {
+                    $tmplParams = isset($tmpl['params']) ? $tmpl['params'] : array();
+                    $cacheKeys[] = cache_kv_make_key($tmpl['template'], $tmplParams);
+                }
+            }
+
+            return $cache->getMultiple($cacheKeys, $callback);
+        }
+
+        // 新格式：template是字符串
+        if (!is_string($template) || empty($params) || !is_array($params)) {
             return array();
         }
 
-        $cache = CacheKVFactory::getInstance();
-        $cacheKeys = array();
-        $paramsMap = array(); // 用于回调函数参数转换
-
-        // 检测数组格式并统一处理
-        $normalizedTemplates = array();
-        
-        // 检查是否是新的简洁格式
-        $isSimpleFormat = false;
-        foreach ($templates as $key => $value) {
-            if (is_string($key) && is_array($value)) {
-                $isSimpleFormat = true;
-                break;
-            }
-        }
-        
-        if ($isSimpleFormat) {
-            // 处理简洁格式：['user.profile' => [1, 2, 3]] 或 ['user.profile' => [['id' => 1], ['id' => 2]]]
-            foreach ($templates as $template => $paramsList) {
-                foreach ($paramsList as $params) {
-                    if (!is_array($params)) {
-                        // 最简格式：[1, 2, 3] -> [['id' => 1], ['id' => 2], ['id' => 3]]
-                        $params = array('id' => $params);
-                    }
-                    $normalizedTemplates[] = array('template' => $template, 'params' => $params);
-                }
-            }
-        } else {
-            // 传统格式：[['template' => 'user.profile', 'params' => ['id' => 1]], ...]
-            $normalizedTemplates = $templates;
-        }
-
-        // 创建CacheKey对象数组
-        foreach ($normalizedTemplates as $template) {
-            if (isset($template['template'])) {
-                $params = isset($template['params']) ? $template['params'] : array();
-                $cacheKey = cache_kv_make_key($template['template'], $params);
-                $cacheKeys[] = $cacheKey;
-                $paramsMap[(string)$cacheKey] = $params;
+        // 构建CacheKey数组
+        foreach ($params as $param) {
+            if (is_array($param)) {
+                // 复杂参数：['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M']
+                $cacheKeys[] = cache_kv_make_key($template, $param);
+            } else {
+                // 简单参数：假设是ID
+                $cacheKeys[] = cache_kv_make_key($template, array('id' => $param));
             }
         }
 
-        // 包装回调函数，提供更友好的参数
-        $wrappedCallback = null;
-        if ($callback !== null) {
-            $wrappedCallback = function($missedKeys) use ($callback, $paramsMap) {
-                $missedParams = array();
-                foreach ($missedKeys as $keyString) {
-                    if (isset($paramsMap[$keyString])) {
-                        $missedParams[] = $paramsMap[$keyString];
-                    }
-                }
-                return $callback($missedParams);
-            };
-        }
-
-        return $cache->getMultiple($cacheKeys, $wrappedCallback);
+        return $cache->getMultiple($cacheKeys, $callback);
     }
 }
 
