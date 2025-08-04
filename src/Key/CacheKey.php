@@ -67,7 +67,7 @@ class CacheKey
      * @param KeyConfig|null $keyConfig 当前键的配置对象
      * @param string|null $fullKey 完整键字符串
      */
-    public function __construct($groupName, $keyName, array $params, GroupConfig $groupConfig, KeyConfig $keyConfig = null, $fullKey = null)
+    public function __construct($groupName, $keyName, array $params, $groupConfig, $keyConfig = null, $fullKey = null)
     {
         $this->groupName = $groupName;
         $this->keyName = $keyName;

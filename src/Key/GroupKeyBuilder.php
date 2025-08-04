@@ -30,7 +30,7 @@ class GroupKeyBuilder
      * @param KeyManager $keyManager KeyManager 实例
      * @param string $groupName 分组名称
      */
-    public function __construct(KeyManager $keyManager, $groupName)
+    public function __construct($keyManager, $groupName)
     {
         $this->keyManager = $keyManager;
         $this->groupName = $groupName;

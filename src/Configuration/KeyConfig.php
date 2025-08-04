@@ -54,7 +54,7 @@ class KeyConfig
      * @param string|null $description 键描述
      * @param CacheConfig|null $cacheConfig 缓存配置对象
      */
-    public function __construct($name, $template, $type, $description = null, CacheConfig $cacheConfig = null)
+    public function __construct($name, $template, $type, $description = null, $cacheConfig = null)
     {
         $this->name = $name;
         $this->template = $template;

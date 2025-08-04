@@ -30,7 +30,7 @@ class CacheKVConfig
      * @param CacheConfig $cache 缓存配置
      * @param KeyManagerConfig $keyManager KeyManager配置
      */
-    public function __construct(CacheConfig $cache, KeyManagerConfig $keyManager)
+    public function __construct($cache, $keyManager)
     {
         $this->cache = $cache;
         $this->keyManager = $keyManager;

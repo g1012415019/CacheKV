@@ -39,7 +39,7 @@ class CacheTagManager
      * @param DriverInterface $driver 驱动实例
      * @param string $tagPrefix 标签前缀
      */
-    public function __construct(DriverInterface $driver, $tagPrefix = 'tag:')
+    public function __construct($driver, $tagPrefix = 'tag:')
     {
         $this->driver = $driver;
         $this->tagPrefix = $tagPrefix;

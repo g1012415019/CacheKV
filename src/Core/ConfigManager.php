@@ -125,7 +125,7 @@ class ConfigManager
         // 获取组级缓存配置
         $groupCacheConfig = $groupConfig->getCacheConfig();
         if ($groupCacheConfig === null) {
-            $groupCacheConfig = [];
+            $groupCacheConfig = array();
         }
         
         // 组配置覆盖全局配置

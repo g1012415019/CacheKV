@@ -34,7 +34,7 @@ class CacheKV
      *
      * @param DriverInterface $driver 缓存驱动
      */
-    public function __construct(DriverInterface $driver)
+    public function __construct($driver)
     {
         $this->driver = $driver;
     }
@@ -47,7 +47,7 @@ class CacheKV
      * @param int|null $ttl 自定义TTL（覆盖配置）
      * @return mixed 缓存数据或回调结果
      */
-    public function get(CacheKey $cacheKey, $callback = null, $ttl = null)
+    public function get($cacheKey, $callback = null, $ttl = null)
     {
         $key = (string)$cacheKey;
 
@@ -97,7 +97,7 @@ class CacheKV
      * @param int|null $ttl 自定义TTL（覆盖配置）
      * @return bool 是否设置成功
      */
-    public function set(CacheKey $cacheKey, $data, $ttl = null)
+    public function set($cacheKey, $data, $ttl = null)
     {
         $key = (string)$cacheKey;
 
@@ -126,7 +126,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return bool 是否删除成功
      */
-    public function delete(CacheKey $cacheKey)
+    public function delete($cacheKey)
     {
         $key = (string)$cacheKey;
 
@@ -144,7 +144,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return bool 是否存在
      */
-    public function exists(CacheKey $cacheKey)
+    public function exists($cacheKey)
     {
         $key = (string)$cacheKey;
         return $this->driver->exists($key);
@@ -318,7 +318,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return array|null
      */
-    public function getKeyStats(CacheKey $cacheKey)
+    public function getKeyStats($cacheKey)
     {
         $key = (string)$cacheKey;
         return KeyStats::getKeyStats($key);
@@ -331,7 +331,7 @@ class CacheKV
      * @param int|null $customTtl 自定义TTL
      * @return int 最终TTL
      */
-    private function getTtl(CacheKey $cacheKey, $customTtl = null)
+    private function getTtl($cacheKey, $customTtl = null)
     {
         // 优先使用传入的TTL
         if ($customTtl !== null) {
@@ -349,7 +349,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return bool
      */
-    private function shouldCacheNull(CacheKey $cacheKey)
+    private function shouldCacheNull($cacheKey)
     {
         $cacheConfig = $cacheKey->getCacheConfig();
         return $cacheConfig !== null ? $cacheConfig->isEnableNullCache() : false;
@@ -361,7 +361,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return int
      */
-    private function getNullCacheTtl(CacheKey $cacheKey)
+    private function getNullCacheTtl($cacheKey)
     {
         $cacheConfig = $cacheKey->getCacheConfig();
         return $cacheConfig !== null ? $cacheConfig->getNullCacheTtl() : 300;
@@ -478,7 +478,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return bool 是否进行了续期
      */
-    private function checkAndRenewHotKey(CacheKey $cacheKey)
+    private function checkAndRenewHotKey($cacheKey)
     {
         $cacheConfig = $cacheKey->getCacheConfig();
         
@@ -531,7 +531,7 @@ class CacheKV
      * @param CacheKey $cacheKey 缓存键对象
      * @return bool 是否进行了续期
      */
-    public function renewHotKey(CacheKey $cacheKey)
+    public function renewHotKey($cacheKey)
     {
         return $this->checkAndRenewHotKey($cacheKey);
     }
