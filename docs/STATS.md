@@ -57,22 +57,11 @@ print_r($hotKeys);
 ```php
 Array
 (
-    [myapp:user:v1:profile:123] => Array
-    (
-        [key] => myapp:user:v1:profile:123
-        [total_requests] => 500         // 总访问次数
-        [hits] => 480                   // 命中次数
-        [misses] => 20                  // 未命中次数
-        [hit_rate] => 96                // 命中率
-    )
-    [myapp:user:v1:profile:456] => Array
-    (
-        [key] => myapp:user:v1:profile:456
-        [total_requests] => 300
-        [hits] => 290
-        [misses] => 10
-        [hit_rate] => 96.67
-    )
+    [myapp:user:v1:profile:123] => 45    // 键名 => 访问次数
+    [myapp:user:v1:profile:456] => 32
+    [myapp:user:v1:settings:123] => 28
+    [myapp:user:v1:profile:789] => 25
+    [myapp:user:v1:settings:456] => 22
     // ... 更多热点键
 )
 ```
@@ -173,9 +162,9 @@ function monitorCachePerformance() {
         
         // 分析热点键
         $hotKeys = cache_kv_get_hot_keys(10);
-        foreach ($hotKeys as $key => $info) {
-            if ($info['hit_rate'] < 70) {
-                logWarning("热点键命中率低: {$key} ({$info['hit_rate']}%)");
+        foreach ($hotKeys as $key => $count) {
+            if ($count > 100) {
+                logWarning("高频访问键: {$key} ({$count}次访问)");
             }
         }
     }
@@ -222,8 +211,8 @@ function getCacheOptimizationSuggestions() {
     }
     
     // 基于热点键的建议
-    $highTrafficKeys = array_filter($hotKeys, function($info) {
-        return $info['total_requests'] > 1000;
+    $highTrafficKeys = array_filter($hotKeys, function($count) {
+        return $count > 1000;
     });
     
     if (count($highTrafficKeys) > 0) {

@@ -83,26 +83,23 @@ echo json_encode($userProfile);
 
 ```php
 // 批量获取多个用户的资料
-$templates = [
-    ['template' => 'user.profile', 'params' => ['id' => 1]],
-    ['template' => 'user.profile', 'params' => ['id' => 2]],
-    ['template' => 'user.profile', 'params' => ['id' => 3]],
+$userParams = [
+    ['id' => 1],
+    ['id' => 2], 
+    ['id' => 3],
 ];
 
-$results = cache_kv_get_multiple($templates, function($missedKeys) {
+$results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     // 批量处理未命中的键
     $data = [];
-    foreach ($missedKeys as $cacheKey) {
-        $keyString = (string)$cacheKey;
-        if (preg_match('/profile:(\d+)/', $keyString, $matches)) {
-            $userId = $matches[1];
-            $data[$keyString] = getUserFromDatabase($userId);
-        }
+    foreach ($missedKeys as $params) {
+        $userId = $params['id'];
+        $data[] = getUserFromDatabase($userId);
     }
     return $data;
 });
 
-foreach ($results as $key => $userData) {
+foreach ($results as $userData) {
     echo "Key: {$key}\n";
     echo "Data: " . json_encode($userData) . "\n\n";
 }
@@ -118,8 +115,8 @@ echo "总请求: {$stats['total_requests']}\n";
 
 // 获取热点键
 $hotKeys = cache_kv_get_hot_keys(5);
-foreach ($hotKeys as $key => $info) {
-    echo "热点键: {$key} (访问{$info['total_requests']}次)\n";
+foreach ($hotKeys as $key => $count) {
+    echo "热点键: {$key} (访问{$count}次)\n";
 }
 ```
 
@@ -180,21 +177,18 @@ echo "性能提升: " . round(($time1 - $time2) / $time1 * 100, 1) . "%\n\n";
 
 // 5. 批量缓存测试
 echo "=== 批量缓存测试 ===\n";
-$templates = [];
+$userParams = [];
 for ($i = 1; $i <= 5; $i++) {
-    $templates[] = ['template' => 'user.profile', 'params' => ['id' => $i]];
+    $userParams[] = ['id' => $i];
 }
 
 $start = microtime(true);
-$results = cache_kv_get_multiple($templates, function($missedKeys) {
+$results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     echo "批量从数据库获取 " . count($missedKeys) . " 个用户...\n";
     $data = [];
-    foreach ($missedKeys as $cacheKey) {
-        $keyString = (string)$cacheKey;
-        if (preg_match('/profile:(\d+)/', $keyString, $matches)) {
-            $userId = $matches[1];
-            $data[$keyString] = getUserFromDatabase($userId);
-        }
+    foreach ($missedKeys as $params) {
+        $userId = $params['id'];
+        $data[] = getUserFromDatabase($userId);
     }
     return $data;
 });
@@ -213,8 +207,8 @@ echo "未命中次数: {$stats['misses']}\n\n";
 
 $hotKeys = cache_kv_get_hot_keys(3);
 echo "热点键:\n";
-foreach ($hotKeys as $key => $info) {
-    echo "  {$key}: {$info['total_requests']}次访问, 命中率{$info['hit_rate']}%\n";
+foreach ($hotKeys as $key => $count) {
+    echo "  {$key}: {$count}次访问\n";
 }
 ```
 

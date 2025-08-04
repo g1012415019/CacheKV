@@ -47,41 +47,38 @@ $user = cache_kv_get('user.profile', ['id' => 123]);
 批量获取缓存，支持自动回填未命中的键。
 
 ```php
-function cache_kv_get_multiple(array $templates, $callback = null)
+function cache_kv_get_multiple($template, array $paramsArray, $callback = null)
 ```
 
 **参数：**
-- `$templates` (array): 模板数组，每个元素包含 `template` 和 `params`
-- `$callback` (callable|null): 回调函数，参数为未命中的CacheKey数组
+- `$template` (string): 缓存模板名称
+- `$paramsArray` (array): 参数数组，每个元素为一组参数
+- `$callback` (callable|null): 回调函数，参数为未命中的参数数组
 
 **返回值：**
-- `array`: 结果数组，键为完整的缓存键字符串，值为缓存数据
+- `array`: 结果数组，按输入顺序返回数据
 
 **示例：**
 ```php
-$templates = [
-    ['template' => 'user.profile', 'params' => ['id' => 1]],
-    ['template' => 'user.profile', 'params' => ['id' => 2]],
-    ['template' => 'user.settings', 'params' => ['id' => 1]],
+$userParams = [
+    ['id' => 1],
+    ['id' => 2],
+    ['id' => 3],
 ];
 
-$results = cache_kv_get_multiple($templates, function($missedKeys) {
+$results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     $data = [];
-    foreach ($missedKeys as $cacheKey) {
-        $keyString = (string)$cacheKey;
-        
-        if (strpos($keyString, 'profile') !== false) {
-            preg_match('/profile:(\d+)/', $keyString, $matches);
-            $data[$keyString] = getUserFromDatabase($matches[1]);
-        } elseif (strpos($keyString, 'settings') !== false) {
-            preg_match('/settings:(\d+)/', $keyString, $matches);
-            $data[$keyString] = getUserSettingsFromDatabase($matches[1]);
-        }
+    foreach ($missedKeys as $params) {
+        $userId = $params['id'];
+        $data[] = getUserFromDatabase($userId);
     }
     return $data;
 });
 
 // 处理结果
+foreach ($results as $index => $userData) {
+    echo "用户 {$userParams[$index]['id']}: {$userData['name']}\n";
+}
 foreach ($results as $keyString => $data) {
     echo "Key: {$keyString}, Data: " . json_encode($data) . "\n";
 }
@@ -147,13 +144,9 @@ function cache_kv_get_hot_keys($limit = 10)
 **返回值结构：**
 ```php
 [
-    'myapp:user:v1:profile:123' => [
-        'key' => 'myapp:user:v1:profile:123',
-        'total_requests' => 500,
-        'hits' => 480,
-        'misses' => 20,
-        'hit_rate' => 96.0
-    ],
+    'myapp:user:v1:profile:123' => 45,  // 键名 => 访问次数
+    'myapp:user:v1:profile:456' => 32,
+    'myapp:user:v1:settings:123' => 28,
     // ... 更多热点键
 ]
 ```
@@ -163,8 +156,8 @@ function cache_kv_get_hot_keys($limit = 10)
 $hotKeys = cache_kv_get_hot_keys(5);
 
 echo "前5个热点键:\n";
-foreach ($hotKeys as $key => $info) {
-    echo "- {$key}: {$info['total_requests']}次访问, 命中率{$info['hit_rate']}%\n";
+foreach ($hotKeys as $key => $count) {
+    echo "- {$key}: {$count}次访问\n";
 }
 ```
 
@@ -744,13 +737,18 @@ $user = $cache->get($cacheKey, function() {
 
 // 4. 批量操作
 $templates = [
-    ['template' => 'user.profile', 'params' => ['id' => 1]],
-    ['template' => 'user.profile', 'params' => ['id' => 2]],
+$userParams = [
+    ['id' => 1],
+    ['id' => 2],
 ];
 
-$results = cache_kv_get_multiple($templates, function($missedKeys) {
+$results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     // 处理未命中的键
-    return batchGetUsersFromDatabase($missedKeys);
+    $data = [];
+    foreach ($missedKeys as $params) {
+        $data[] = getUserFromDatabase($params['id']);
+    }
+    return $data;
 });
 
 // 5. 统计监控

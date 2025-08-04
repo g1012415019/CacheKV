@@ -566,7 +566,7 @@ function generateCacheReport() {
 | 函数 | 说明 | 参数 | 返回值 |
 |------|------|------|--------|
 | `cache_kv_get()` | 获取单个缓存 | `$template, $params, $callback, $ttl` | `mixed` |
-| `cache_kv_get_multiple()` | 批量获取缓存 | `$templates, $callback` | `array` |
+| `cache_kv_get_multiple()` | 批量获取缓存 | `$template, $paramsArray, $callback` | `array` |
 | `cache_kv_get_stats()` | 获取统计信息 | 无 | `array` |
 | `cache_kv_get_hot_keys()` | 获取热点键 | `$limit` | `array` |
 
