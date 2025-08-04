@@ -5,6 +5,33 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2024-08-04
+
+### 📚 文档更新
+
+#### 🔄 更改
+- **包名更新**: 从 `asfop/cache-kv` 更新为 `asfop1/cache-kv`
+- **安装命令**: 更新所有文档中的安装命令为 `composer require asfop1/cache-kv`
+- **项目徽章**: 添加版本、下载量、星标、问题等徽章到主README
+- **文档链接**: 修复文档间的交叉引用链接
+
+#### ✨ 新增
+- **CHANGELOG.md**: 详细的版本更新记录
+- **CONTRIBUTING.md**: 完整的贡献指南，包含代码规范和提交流程
+
+#### 🎨 改进
+- 统一文档格式和风格
+- 完善项目元信息
+- 提供清晰的贡献流程
+- 优化文档结构和导航
+
+### 📦 安装
+```bash
+composer require asfop1/cache-kv
+```
+
+---
+
 ## [1.0.0] - 2024-08-04
 
 ### 🎉 首次发布
