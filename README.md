@@ -82,7 +82,21 @@ $users = cache_kv_get_multiple('user.profile', [
     ['id' => 2],
     ['id' => 3]
 ], function($missedKeys) {
-    return getUsersFromDatabase($missedKeys);
+    // $missedKeys 是 CacheKey 对象数组
+    // 方式1：返回关联数组（键字符串 => 数据）
+    $results = [];
+    foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
+        $results[$keyString] = getUserFromDatabase($cacheKey);
+    }
+    return $results;
+    
+    // 方式2：返回索引数组（按顺序对应）
+    // return [
+    //     getUserFromDatabase($missedKeys[0]),
+    //     getUserFromDatabase($missedKeys[1]),
+    //     getUserFromDatabase($missedKeys[2])
+    // ];
 });
 
 // 2. 复杂参数批量获取
@@ -91,6 +105,7 @@ $reports = cache_kv_get_multiple('report.daily', [
     ['id' => 2, 'ymd' => '20240804', 'uid' => 456, 'sex' => 'F'],
     ['id' => 3, 'ymd' => '20240805', 'uid' => 789, 'sex' => 'M']
 ], function($missedKeys) {
+    // 批量查询数据库
     return getReportsFromDatabase($missedKeys);
 });
 ```

@@ -270,19 +270,40 @@ class CacheKV
             $callbackResults = $callback($missedKeys);
 
             if (is_array($callbackResults)) {
-                // 逐个设置缓存（避免CacheKey作为数组键的问题）
-                foreach ($callbackResults as $keyString => $data) {
-                    if (isset($keyMap[$keyString])) {
-                        $cacheKey = $keyMap[$keyString];
-                        
-                        // 记录统计
-                        if ($cacheKey->isStatsEnabled()) {
-                            KeyStats::recordSet($keyString);
+                // 如果回调返回的是关联数组（键字符串 => 数据）
+                if (!empty($callbackResults) && is_string(key($callbackResults))) {
+                    foreach ($callbackResults as $keyString => $data) {
+                        if (isset($keyMap[$keyString])) {
+                            $cacheKey = $keyMap[$keyString];
+                            
+                            // 记录统计
+                            if ($cacheKey->isStatsEnabled()) {
+                                KeyStats::recordSet($keyString);
+                            }
+                            
+                            // 设置缓存
+                            $this->set($cacheKey, $data);
+                            $finalResults[$keyString] = $data;
                         }
-                        
-                        // 设置缓存
-                        $this->set($cacheKey, $data);
-                        $finalResults[$keyString] = $data;
+                    }
+                } else {
+                    // 如果回调返回的是索引数组，按顺序匹配
+                    $index = 0;
+                    foreach ($missedKeys as $cacheKey) {
+                        if (isset($callbackResults[$index])) {
+                            $keyString = (string)$cacheKey;
+                            $data = $callbackResults[$index];
+                            
+                            // 记录统计
+                            if ($cacheKey->isStatsEnabled()) {
+                                KeyStats::recordSet($keyString);
+                            }
+                            
+                            // 设置缓存
+                            $this->set($cacheKey, $data);
+                            $finalResults[$keyString] = $data;
+                            $index++;
+                        }
                     }
                 }
             }
