@@ -37,6 +37,12 @@ class CacheKV
     public function __construct($driver)
     {
         $this->driver = $driver;
+        
+        // 启用统计功能（如果配置启用）
+        $cacheConfig = ConfigManager::getCacheConfig();
+        if ($cacheConfig->isEnableStats()) {
+            KeyStats::enable();
+        }
     }
 
     /**

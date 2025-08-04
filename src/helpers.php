@@ -63,8 +63,7 @@ if (!function_exists('cache_kv_get_stats')) {
      */
     function cache_kv_get_stats()
     {
-        $cache = CacheKVFactory::getInstance();
-        return $cache->getStats();
+        return \Asfop\CacheKV\Stats\KeyStats::getGlobalStats();
     }
 }
 
@@ -77,8 +76,27 @@ if (!function_exists('cache_kv_get_hot_keys')) {
      */
     function cache_kv_get_hot_keys($limit = 10)
     {
-        $cache = CacheKVFactory::getInstance();
-        return $cache->getHotKeys($limit);
+        return \Asfop\CacheKV\Stats\KeyStats::getHotKeys($limit);
+    }
+}
+
+if (!function_exists('cache_kv_clear_stats')) {
+    /**
+     * 清空统计数据
+     */
+    function cache_kv_clear_stats()
+    {
+        \Asfop\CacheKV\Stats\KeyStats::clear();
+    }
+}
+
+if (!function_exists('cache_kv_sync_stats')) {
+    /**
+     * 强制同步统计数据到Redis
+     */
+    function cache_kv_sync_stats()
+    {
+        \Asfop\CacheKV\Stats\KeyStats::forceSync();
     }
 }
 

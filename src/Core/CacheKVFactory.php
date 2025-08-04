@@ -47,6 +47,13 @@ class CacheKVFactory
         // 设置 KeyManager 配置
         $keyManagerConfig = ConfigManager::getKeyManagerConfig();
         KeyManager::injectGlobalConfig($keyManagerConfig);
+        
+        // 初始化统计系统的Redis驱动
+        if (self::$redisProvider !== null && is_callable(self::$redisProvider)) {
+            $redisProvider = self::$redisProvider;
+            $redis = $redisProvider();
+            \Asfop\CacheKV\Stats\KeyStats::setDriver($redis);
+        }
     }
 
     /**
