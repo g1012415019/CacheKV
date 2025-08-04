@@ -179,6 +179,8 @@ return array(
     'cache' => array(
         'ttl' => 3600,                          // 默认缓存时间
         'enable_stats' => true,                 // 启用统计
+        'stats_prefix' => 'cachekv:stats:',     // 统计数据Redis键前缀
+        'stats_ttl' => 604800,                  // 统计数据TTL（7天）
         'hot_key_auto_renewal' => true,         // 启用热点键自动续期
         'hot_key_threshold' => 100,             // 热点键阈值
     ),

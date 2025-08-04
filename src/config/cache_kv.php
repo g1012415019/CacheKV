@@ -19,6 +19,8 @@ return array(
         
         // 统计配置
         'enable_stats' => true,                     // 是否启用统计
+        'stats_prefix' => 'cachekv:stats:',         // 统计数据Redis键前缀
+        'stats_ttl' => 604800,                      // 统计数据TTL（秒，默认7天）
         
         // 热点键自动续期配置（简化版）
         'hot_key_auto_renewal' => true,             // 是否启用热点键自动续期

@@ -86,6 +86,28 @@ class CacheConfig
         return isset($this->config['enable_stats']) ? (bool)$this->config['enable_stats'] : $default;
     }
 
+    /**
+     * 获取统计数据Redis键前缀
+     * 
+     * @param string $default 默认值
+     * @return string
+     */
+    public function getStatsPrefix($default = 'cachekv:stats:')
+    {
+        return isset($this->config['stats_prefix']) ? (string)$this->config['stats_prefix'] : $default;
+    }
+
+    /**
+     * 获取统计数据TTL
+     * 
+     * @param int $default 默认值（7天）
+     * @return int
+     */
+    public function getStatsTtl($default = 604800)
+    {
+        return isset($this->config['stats_ttl']) ? (int)$this->config['stats_ttl'] : $default;
+    }
+
     // ==================== 热点键自动续期配置 ====================
 
     /**

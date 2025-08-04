@@ -23,20 +23,6 @@ class KeyStats
      * @var mixed
      */
     private static $driver = null;
-    
-    /**
-     * 统计数据在Redis中的键前缀
-     * 
-     * @var string
-     */
-    private static $statsPrefix = 'cachekv:stats:';
-    
-    /**
-     * 统计数据TTL（7天）
-     * 
-     * @var int
-     */
-    private static $statsTtl = 604800;
 
     /**
      * 设置Redis驱动
@@ -46,6 +32,36 @@ class KeyStats
     public static function setDriver($driver)
     {
         self::$driver = $driver;
+    }
+
+    /**
+     * 获取统计数据Redis键前缀
+     * 
+     * @return string
+     */
+    private static function getStatsPrefix()
+    {
+        try {
+            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getCacheConfig();
+            return $cacheConfig->getStatsPrefix();
+        } catch (Exception $e) {
+            return 'cachekv:stats:'; // 默认值
+        }
+    }
+
+    /**
+     * 获取统计数据TTL
+     * 
+     * @return int
+     */
+    private static function getStatsTtl()
+    {
+        try {
+            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getCacheConfig();
+            return $cacheConfig->getStatsTtl();
+        } catch (Exception $e) {
+            return 604800; // 默认7天
+        }
     }
 
     /**
@@ -87,14 +103,15 @@ class KeyStats
         
         try {
             $count = count($keys);
+            $statsPrefix = self::getStatsPrefix();
             
             // 使用Pipeline批量操作
             $pipe = self::$driver->pipeline();
-            $pipe->incrBy(self::$statsPrefix . 'hits', $count);
+            $pipe->incrBy($statsPrefix . 'hits', $count);
             
             // 批量更新热点键（使用Redis Sorted Set）
             foreach ($keys as $key) {
-                $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+                $pipe->zincrby($statsPrefix . 'hot_keys', 1, $key);
             }
             
             $pipe->exec();
@@ -118,11 +135,11 @@ class KeyStats
             $count = count($keys);
             
             $pipe = self::$driver->pipeline();
-            $pipe->incrBy(self::$statsPrefix . 'misses', $count);
+            $pipe->incrBy(self::getStatsPrefix() . 'misses', $count);
             
             // 未命中也算访问，记录到热点键
             foreach ($keys as $key) {
-                $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+                $pipe->zincrby(self::getStatsPrefix() . 'hot_keys', 1, $key);
             }
             
             $pipe->exec();
@@ -144,7 +161,7 @@ class KeyStats
         
         try {
             $count = count($keys);
-            self::$driver->incrBy(self::$statsPrefix . 'sets', $count);
+            self::$driver->incrBy(self::getStatsPrefix() . 'sets', $count);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -164,8 +181,8 @@ class KeyStats
         try {
             // 使用Pipeline优化
             $pipe = self::$driver->pipeline();
-            $pipe->incrBy(self::$statsPrefix . 'hits', 1);
-            $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+            $pipe->incrBy(self::getStatsPrefix() . 'hits', 1);
+            $pipe->zincrby(self::getStatsPrefix() . 'hot_keys', 1, $key);
             $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略
@@ -185,8 +202,8 @@ class KeyStats
         
         try {
             $pipe = self::$driver->pipeline();
-            $pipe->incrBy(self::$statsPrefix . 'misses', 1);
-            $pipe->zincrby(self::$statsPrefix . 'hot_keys', 1, $key);
+            $pipe->incrBy(self::getStatsPrefix() . 'misses', 1);
+            $pipe->zincrby(self::getStatsPrefix() . 'hot_keys', 1, $key);
             $pipe->exec();
         } catch (Exception $e) {
             // Redis操作失败时忽略
@@ -205,7 +222,7 @@ class KeyStats
         }
         
         try {
-            self::$driver->incrBy(self::$statsPrefix . 'sets', 1);
+            self::$driver->incrBy(self::getStatsPrefix() . 'sets', 1);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -223,7 +240,7 @@ class KeyStats
         }
         
         try {
-            self::$driver->incrBy(self::$statsPrefix . 'deletes', 1);
+            self::$driver->incrBy(self::getStatsPrefix() . 'deletes', 1);
         } catch (Exception $e) {
             // Redis操作失败时忽略
         }
@@ -242,10 +259,10 @@ class KeyStats
         
         try {
             $stats = array(
-                'hits' => (int)self::$driver->get(self::$statsPrefix . 'hits') ?: 0,
-                'misses' => (int)self::$driver->get(self::$statsPrefix . 'misses') ?: 0,
-                'sets' => (int)self::$driver->get(self::$statsPrefix . 'sets') ?: 0,
-                'deletes' => (int)self::$driver->get(self::$statsPrefix . 'deletes') ?: 0,
+                'hits' => (int)self::$driver->get(self::getStatsPrefix() . 'hits') ?: 0,
+                'misses' => (int)self::$driver->get(self::getStatsPrefix() . 'misses') ?: 0,
+                'sets' => (int)self::$driver->get(self::getStatsPrefix() . 'sets') ?: 0,
+                'deletes' => (int)self::$driver->get(self::getStatsPrefix() . 'deletes') ?: 0,
             );
             
             // 计算命中率
@@ -276,7 +293,7 @@ class KeyStats
         try {
             // 使用Redis Sorted Set的ZREVRANGE命令
             $result = self::$driver->zRevRange(
-                self::$statsPrefix . 'hot_keys', 
+                self::getStatsPrefix() . 'hot_keys', 
                 0, 
                 $limit - 1, 
                 true // 返回分数
@@ -300,7 +317,7 @@ class KeyStats
         try {
             $keys = array('hits', 'misses', 'sets', 'deletes', 'hot_keys');
             foreach ($keys as $key) {
-                self::$driver->delete(self::$statsPrefix . $key);
+                self::$driver->delete(self::getStatsPrefix() . $key);
             }
         } catch (Exception $e) {
             // 忽略Redis操作失败
