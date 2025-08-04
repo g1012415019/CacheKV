@@ -236,16 +236,18 @@ class CacheKV
         $finalResults = array();
         $missedKeys = array();
         $hitKeys = array(); // 用于批量热点键检查
+        $hitKeyStrings = array(); // 用于批量统计
+        $missKeyStrings = array(); // 用于批量统计
 
         foreach ($stringKeys as $stringKey) {
             $cacheKey = $keyMap[$stringKey];
             $cached = isset($results[$stringKey]) ? $results[$stringKey] : null;
 
             if ($cached !== null) {
-                // 记录命中统计
+                // 收集命中的键，用于批量统计和热点检查
                 if ($cacheKey->isStatsEnabled()) {
-                    KeyStats::recordHit($stringKey);
-                    $hitKeys[] = $cacheKey; // 收集命中的键，用于批量热点检查
+                    $hitKeys[] = $cacheKey;
+                    $hitKeyStrings[] = $stringKey;
                 }
 
                 if ($cached === self::NULL_VALUE) {
@@ -254,12 +256,20 @@ class CacheKV
                     $finalResults[$stringKey] = $this->unserialize($cached);
                 }
             } else {
-                // 记录未命中统计
+                // 收集未命中的键，用于批量统计
                 if ($cacheKey->isStatsEnabled()) {
-                    KeyStats::recordMiss($stringKey);
+                    $missKeyStrings[] = $stringKey;
                 }
                 $missedKeys[] = $cacheKey;
             }
+        }
+
+        // 批量记录统计（性能优化）
+        if (!empty($hitKeyStrings)) {
+            KeyStats::recordBatchHits($hitKeyStrings);
+        }
+        if (!empty($missKeyStrings)) {
+            KeyStats::recordBatchMisses($missKeyStrings);
         }
 
         // 批量处理热点键续期（性能优化）
@@ -270,19 +280,23 @@ class CacheKV
             $callbackResults = $callback($missedKeys);
 
             if (is_array($callbackResults)) {
+                $batchSetData = array(); // 用于批量设置缓存
+                $setKeyStrings = array(); // 用于批量统计
+                
                 // 如果回调返回的是关联数组（键字符串 => 数据）
                 if (!empty($callbackResults) && is_string(key($callbackResults))) {
                     foreach ($callbackResults as $keyString => $data) {
                         if (isset($keyMap[$keyString])) {
                             $cacheKey = $keyMap[$keyString];
                             
-                            // 记录统计
+                            // 收集统计键
                             if ($cacheKey->isStatsEnabled()) {
-                                KeyStats::recordSet($keyString);
+                                $setKeyStrings[] = $keyString;
                             }
                             
-                            // 设置缓存
-                            $this->set($cacheKey, $data);
+                            // 准备批量设置数据
+                            $serializedData = ($data === null) ? self::NULL_VALUE : $this->serialize($data);
+                            $batchSetData[$keyString] = $serializedData;
                             $finalResults[$keyString] = $data;
                         }
                     }
@@ -294,16 +308,31 @@ class CacheKV
                             $keyString = (string)$cacheKey;
                             $data = $callbackResults[$index];
                             
-                            // 记录统计
+                            // 收集统计键
                             if ($cacheKey->isStatsEnabled()) {
-                                KeyStats::recordSet($keyString);
+                                $setKeyStrings[] = $keyString;
                             }
                             
-                            // 设置缓存
-                            $this->set($cacheKey, $data);
+                            // 准备批量设置数据
+                            $serializedData = ($data === null) ? self::NULL_VALUE : $this->serialize($data);
+                            $batchSetData[$keyString] = $serializedData;
                             $finalResults[$keyString] = $data;
                             $index++;
                         }
+                    }
+                }
+                
+                // 批量设置缓存（性能优化）
+                if (!empty($batchSetData)) {
+                    // 获取TTL（使用第一个键的配置）
+                    $firstKey = reset($missedKeys);
+                    $ttl = $firstKey->getTtl();
+                    
+                    $this->driver->setMultiple($batchSetData, $ttl);
+                    
+                    // 批量记录统计（性能优化）
+                    if (!empty($setKeyStrings)) {
+                        KeyStats::recordBatchSets($setKeyStrings);
                     }
                 }
             }

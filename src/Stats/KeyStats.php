@@ -57,6 +57,81 @@ class KeyStats
     }
 
     /**
+     * 批量记录缓存命中（性能优化）
+     * 
+     * @param array $keys 缓存键数组
+     */
+    public static function recordBatchHits(array $keys)
+    {
+        if (empty($keys)) {
+            return;
+        }
+        
+        // 自动启用统计（如果还未启用）
+        if (!self::$enabled) {
+            self::$enabled = true;
+        }
+        
+        $count = count($keys);
+        self::$stats['hits'] += $count;
+        
+        // 批量更新键级统计
+        foreach ($keys as $key) {
+            self::incrementKeyCounter($key, 'hits');
+        }
+    }
+
+    /**
+     * 批量记录缓存未命中（性能优化）
+     * 
+     * @param array $keys 缓存键数组
+     */
+    public static function recordBatchMisses(array $keys)
+    {
+        if (empty($keys)) {
+            return;
+        }
+        
+        // 自动启用统计（如果还未启用）
+        if (!self::$enabled) {
+            self::$enabled = true;
+        }
+        
+        $count = count($keys);
+        self::$stats['misses'] += $count;
+        
+        // 批量更新键级统计
+        foreach ($keys as $key) {
+            self::incrementKeyCounter($key, 'misses');
+        }
+    }
+
+    /**
+     * 批量记录缓存设置（性能优化）
+     * 
+     * @param array $keys 缓存键数组
+     */
+    public static function recordBatchSets(array $keys)
+    {
+        if (empty($keys)) {
+            return;
+        }
+        
+        // 自动启用统计（如果还未启用）
+        if (!self::$enabled) {
+            self::$enabled = true;
+        }
+        
+        $count = count($keys);
+        self::$stats['sets'] += $count;
+        
+        // 批量更新键级统计
+        foreach ($keys as $key) {
+            self::incrementKeyCounter($key, 'sets');
+        }
+    }
+
+    /**
      * 记录缓存命中
      * 
      * @param string $key 缓存键
