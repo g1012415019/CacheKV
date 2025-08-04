@@ -74,14 +74,32 @@ $item = cache_kv_get('user.profile', ['id' => 1], function() {
 
 ### 2. 批量操作优化
 ```php
+// 🔥 改进：cache_kv_get_multiple 支持多种简洁用法
+
+// 方式1：最简洁 - 直接传ID数组
+$users = cache_kv_get_multiple(['user.profile' => [1, 2, 3]], function($missedParams) {
+    // $missedParams = [['id' => 1], ['id' => 3]] (假设id=2命中缓存)
+    $ids = array_column($missedParams, 'id');
+    return getUsersFromDatabase($ids);
+});
+
+// 方式2：简洁 - 传参数数组
+$users = cache_kv_get_multiple(['user.profile' => [
+    ['id' => 1],
+    ['id' => 2], 
+    ['id' => 3]
+]], function($missedParams) {
+    return getUsersFromDatabase($missedParams);
+});
+
+// 方式3：传统方式（向后兼容）
 $templates = [
     ['template' => 'user.profile', 'params' => ['id' => 1]],
     ['template' => 'user.profile', 'params' => ['id' => 2]],
     ['template' => 'user.profile', 'params' => ['id' => 3]]
 ];
-
-$users = cache_kv_get_multiple($templates, function($missedKeys) {
-    return getUsersFromDatabase($missedKeys);
+$users = cache_kv_get_multiple($templates, function($missedParams) {
+    return getUsersFromDatabase($missedParams);
 });
 ```
 
@@ -175,14 +193,23 @@ function getApiResult($endpoint, $params) {
 ### 批量数据获取
 ```php
 function getUserProfiles($userIds) {
+    // 🔥 新的简洁写法
+    return cache_kv_get_multiple(['user.profile' => $userIds], function($missedParams) {
+        // 批量从数据库获取未命中的用户
+        $missedIds = array_column($missedParams, 'id');
+        return batchGetUsersFromDatabase($missedIds);
+    });
+}
+
+// 或者传统写法（向后兼容）
+function getUserProfilesOld($userIds) {
     $templates = [];
     foreach ($userIds as $id) {
         $templates[] = ['template' => 'user.profile', 'params' => ['id' => $id]];
     }
     
-    return cache_kv_get_multiple($templates, function($missedKeys) {
-        // 批量从数据库获取未命中的用户
-        return batchGetUsersFromDatabase($missedKeys);
+    return cache_kv_get_multiple($templates, function($missedParams) {
+        return batchGetUsersFromDatabase($missedParams);
     });
 }
 ```
