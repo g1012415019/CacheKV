@@ -11,21 +11,19 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实�
 
 ## 🎯 核心价值
 
-**解决缓存使用中的常见痛点：**
-- ❌ 手动检查缓存是否存在
-- ❌ 缓存未命中时手动从数据源获取
-- ❌ 手动将获取的数据写入缓存
-- ❌ 批量操作时的复杂逻辑处理
-- ❌ 相关缓存的批量失效管理
-- ❌ 缓存键名称管理混乱
-
-**CacheKV 让这一切变得简单：**
+**CacheKV 让缓存操作变得简单：**
 ```php
 // 一行代码搞定：检查缓存 → 未命中则获取数据 → 自动回填缓存
 $data = cache_kv_get('user.profile', ['id' => 123], function() {
     return getUserFromDatabase(123); // 只在缓存未命中时执行
 });
 ```
+
+**解决的痛点：**
+- ❌ 手动检查缓存是否存在
+- ❌ 缓存未命中时手动从数据源获取
+- ❌ 手动将获取的数据写入缓存
+- ❌ 批量操作时的复杂逻辑处理
 
 ## ⚡ 快速开始
 
@@ -35,7 +33,7 @@ $data = cache_kv_get('user.profile', ['id' => 123], function() {
 composer require asfop1/cache-kv
 ```
 
-### 30秒上手
+### 基础使用
 
 ```php
 <?php
@@ -43,121 +41,48 @@ require_once 'vendor/autoload.php';
 
 use Asfop\CacheKV\Core\CacheKVFactory;
 
-// 一行配置，开箱即用
-CacheKVFactory::configure(
-    function() {
-        $redis = new Redis();
-        $redis->connect('127.0.0.1', 6379);
-        return $redis;
-    },
-    '/path/to/config.php' // 配置文件路径（可选）
-);
+// 配置Redis连接
+CacheKVFactory::configure(function() {
+    $redis = new Redis();
+    $redis->connect('127.0.0.1', 6379);
+    return $redis;
+});
 
-// 使用缓存
-$userData = cache_kv_get('user.profile', ['id' => 123], function() {
+// 单个数据获取
+$user = cache_kv_get('user.profile', ['id' => 123], function() {
     return ['id' => 123, 'name' => 'John', 'email' => 'john@example.com'];
 });
 
-echo json_encode($userData);
+// 批量数据获取
+$users = cache_kv_get_multiple('user.profile', [
+    ['id' => 1], ['id' => 2], ['id' => 3]
+], function($missedKeys) {
+    return batchGetUsersFromDatabase($missedKeys);
+});
 ```
 
 ## 🚀 核心功能
 
-### 1. 自动回填缓存
-```php
-// 缓存存在：直接返回缓存数据
-// 缓存不存在：执行回调函数获取数据，自动写入缓存后返回
-$item = cache_kv_get('user.profile', ['id' => 1], function() {
-    return getUserFromDatabase(1);
-});
-```
+- **自动回填缓存**：缓存未命中时自动执行回调并缓存结果
+- **批量操作优化**：高效的批量获取，避免N+1查询问题
+- **热点键自动续期**：自动检测并延长热点数据的缓存时间
+- **统计监控**：实时统计命中率、热点键等性能指标
+- **统一键管理**：标准化键生成，支持环境隔离和版本管理
 
-### 2. 批量操作优化
-```php
-// 🔥 简洁的批量操作API
+## 📊 统计功能
 
-// 1. 简单参数批量获取
-$users = cache_kv_get_multiple('user.profile', [
-    ['id' => 1],
-    ['id' => 2],
-    ['id' => 3]
-], function($missedKeys) {
-    // $missedKeys 是 CacheKey 对象数组
-    // 方式1：返回关联数组（键字符串 => 数据）
-    $results = [];
-    foreach ($missedKeys as $cacheKey) {
-        $keyString = (string)$cacheKey;
-        $results[$keyString] = getUserFromDatabase($cacheKey);
-    }
-    return $results;
-    
-    // 方式2：返回索引数组（按顺序对应）
-    // return [
-    //     getUserFromDatabase($missedKeys[0]),
-    //     getUserFromDatabase($missedKeys[1]),
-    //     getUserFromDatabase($missedKeys[2])
-    // ];
-});
-
-// 2. 复杂参数批量获取
-$reports = cache_kv_get_multiple('report.daily', [
-    ['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M'],
-    ['id' => 2, 'ymd' => '20240804', 'uid' => 456, 'sex' => 'F'],
-    ['id' => 3, 'ymd' => '20240805', 'uid' => 789, 'sex' => 'M']
-], function($missedKeys) {
-    // 批量查询数据库
-    return getReportsFromDatabase($missedKeys);
-});
-```
-
-### 3. 热点键自动续期
-```php
-// 系统自动检测热点数据并延长缓存时间
-// 无需手动干预，热点数据永不过期
-```
-
-### 4. 统一键管理
-```php
-// 标准化的键生成：myapp:user:v1:profile:123
-$key = cache_kv_make_key('user.profile', ['id' => 123]);
-
-// 环境隔离：开发、测试、生产环境自动隔离
-// 版本管理：数据结构变更时版本号隔离
-```
-
-### 5. 统计监控
 ```php
 // 获取统计信息
 $stats = cache_kv_get_stats();
-// 输出：['hits' => 1500, 'misses' => 300, 'hit_rate' => '83.33%', ...]
+// ['hits' => 1500, 'misses' => 300, 'hit_rate' => '83.33%', ...]
 
 // 获取热点键
 $hotKeys = cache_kv_get_hot_keys(10);
-// 获取访问频率最高的10个缓存键
-
-// 清空所有统计数据
-cache_kv_clear_stats();
+// ['user:profile:123' => 45, 'user:profile:456' => 32, ...]
 ```
-
-**统计特性：**
-- ✅ **实时统计**：每次缓存操作直接记录到Redis
-- ✅ **数据持久**：统计数据保存在Redis中，重启不丢失
-- ✅ **热点检测**：自动记录访问频率最高的键
-- ✅ **性能友好**：Redis操作失败时不影响主要功能
-- ✅ **配置灵活**：支持自定义统计前缀和TTL
-
-## 📚 文档
-
-- **[完整文档](docs/README.md)** - 详细的配置和架构说明
-- **[快速开始](docs/QUICK_START.md)** - 5分钟快速上手指南
-- **[配置参考](docs/CONFIG.md)** - 所有配置选项的详细说明
-- **[统计功能](docs/STATS.md)** - 性能监控和热点键管理
-- **[API 参考](docs/API.md)** - 完整的API文档
-- **[更新日志](CHANGELOG.md)** - 版本更新记录
 
 ## 🔧 配置示例
 
-### 基础配置
 ```php
 // config/cache_kv.php
 return array(
@@ -188,95 +113,26 @@ return array(
 );
 ```
 
-## 🎨 实际应用场景
+## 📚 文档
 
-### 用户数据缓存
-```php
-function getUserProfile($userId) {
-    return cache_kv_get('user.profile', ['id' => $userId], function() use ($userId) {
-        return getUserFromDatabase($userId);
-    });
-}
-```
-
-### API 响应缓存
-```php
-function getApiResult($endpoint, $params) {
-    return cache_kv_get('api.result', [
-        'endpoint' => $endpoint,
-        'hash' => md5(json_encode($params))
-    ], function() use ($endpoint, $params) {
-        return callExternalAPI($endpoint, $params);
-    }, 1800); // 30分钟缓存
-}
-```
-
-### 批量数据获取
-```php
-function getUserProfiles($userIds) {
-    // 构建参数数组
-    $paramsList = [];
-    foreach ($userIds as $id) {
-        $paramsList[] = ['id' => $id];
-    }
-    
-    return cache_kv_get_multiple('user.profile', $paramsList, function($missedKeys) {
-        // 批量从数据库获取未命中的用户
-        return batchGetUsersFromDatabase($missedKeys);
-    });
-}
-
-function getDailyReports($reportParams) {
-    // 复杂参数批量获取
-    return cache_kv_get_multiple('report.daily', $reportParams, function($missedKeys) {
-        // $reportParams = [
-        //     ['id' => 1, 'ymd' => '20240804', 'uid' => 123, 'sex' => 'M'],
-        //     ['id' => 2, 'ymd' => '20240804', 'uid' => 456, 'sex' => 'F']
-        // ]
-        return batchGetReportsFromDatabase($missedKeys);
-    });
-}
-```
-
-## 📈 核心优势
-
-### ✅ 极简使用
-- **零配置**：直接使用，无需复杂配置
-- **一行配置**：全局配置，一次设置处处使用
-- **无重复代码**：辅助函数封装，避免重复
-
-### ✅ 自动化
-- **自动回填**：缓存未命中自动从数据源获取
-- **智能批量**：自动优化批量操作，避免 N+1 查询
-- **热点续期**：热点数据自动延长缓存时间
-
-### ✅ 可观测性
-- **命中率统计**：实时监控缓存性能
-- **热点检测**：识别高频访问的数据
-- **性能报告**：详细的统计和分析
-
-### ✅ 维护性
-- **环境隔离**：开发、测试、生产环境自动隔离
-- **版本管理**：支持数据结构升级和版本迁移
-- **统一管理**：标准化的键命名和配置管理
+- **[完整文档](docs/README.md)** - 详细的配置和架构说明
+- **[快速开始](docs/QUICK_START.md)** - 5分钟快速上手指南
+- **[配置参考](docs/CONFIG.md)** - 所有配置选项的详细说明
+- **[统计功能](docs/STATS.md)** - 性能监控和热点键管理
+- **[API 参考](docs/API.md)** - 完整的API文档
+- **[更新日志](CHANGELOG.md)** - 版本更新记录
 
 ## 🏆 适用场景
 
 - **Web 应用** - 用户数据、页面内容缓存
 - **API 服务** - 接口响应、计算结果缓存
 - **电商平台** - 商品信息、价格、库存缓存
-- **内容管理** - 文章、评论、分类缓存
 - **数据分析** - 统计数据、报表缓存
-- **微服务架构** - 服务间数据缓存
 
 ## 📋 系统要求
 
 - PHP >= 7.0
-- Redis 扩展（推荐）
-
-## 🤝 贡献
-
-欢迎为 CacheKV 做出贡献！请查看我们的 [贡献指南](CONTRIBUTING.md) 了解如何参与。
+- Redis 扩展
 
 ## 📄 许可证
 
