@@ -53,10 +53,39 @@ function cache_kv_get_multiple($template, array $paramsArray, $callback = null)
 **参数：**
 - `$template` (string): 缓存模板名称
 - `$paramsArray` (array): 参数数组，每个元素为一组参数
-- `$callback` (callable|null): 回调函数，参数为未命中的参数数组
+- `$callback` (callable|null): 回调函数，参数为未命中的CacheKey对象数组
 
 **返回值：**
-- `array`: 结果数组，按输入顺序返回数据
+- `array`: 结果数组，键为完整的缓存键字符串，值为缓存数据
+
+**回调函数详解：**
+
+回调函数接收`$missedKeys`参数（CacheKey对象数组），可以返回两种格式：
+
+1. **索引数组格式**（推荐）：
+```php
+function($missedKeys) {
+    $data = [];
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
+        $data[] = getUserFromDatabase($params['id']); // 按顺序添加
+    }
+    return $data; // 索引数组，按顺序对应missedKeys
+}
+```
+
+2. **关联数组格式**：
+```php
+function($missedKeys) {
+    $data = [];
+    foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
+        $params = $cacheKey->getParams();
+        $data[$keyString] = getUserFromDatabase($params['id']); // 键字符串 => 数据
+    }
+    return $data; // 关联数组
+}
+```
 
 **示例：**
 ```php
@@ -67,17 +96,19 @@ $userParams = [
 ];
 
 $results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
+    // $missedKeys 是 CacheKey 对象数组
     $data = [];
-    foreach ($missedKeys as $params) {
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
         $userId = $params['id'];
         $data[] = getUserFromDatabase($userId);
     }
-    return $data;
+    return $data; // 返回索引数组，按顺序对应
 });
 
 // 处理结果
-foreach ($results as $index => $userData) {
-    echo "用户 {$userParams[$index]['id']}: {$userData['name']}\n";
+foreach ($results as $keyString => $userData) {
+    echo "缓存键 {$keyString}: {$userData['name']}\n";
 }
 foreach ($results as $keyString => $data) {
     echo "Key: {$keyString}, Data: " . json_encode($data) . "\n";
@@ -745,10 +776,11 @@ $userParams = [
 $results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     // 处理未命中的键
     $data = [];
-    foreach ($missedKeys as $params) {
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
         $data[] = getUserFromDatabase($params['id']);
     }
-    return $data;
+    return $data; // 返回索引数组，按顺序对应
 });
 
 // 5. 统计监控

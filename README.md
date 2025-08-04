@@ -57,7 +57,14 @@ $user = cache_kv_get('user.profile', ['id' => 123], function() {
 $users = cache_kv_get_multiple('user.profile', [
     ['id' => 1], ['id' => 2], ['id' => 3]
 ], function($missedKeys) {
-    return batchGetUsersFromDatabase($missedKeys);
+    // $missedKeys 是 CacheKey 对象数组
+    $data = [];
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
+        $userId = $params['id'];
+        $data[] = getUserFromDatabase($userId);
+    }
+    return $data; // 返回索引数组，按顺序对应
 });
 ```
 

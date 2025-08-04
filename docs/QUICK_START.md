@@ -92,11 +92,12 @@ $userParams = [
 $results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     // 批量处理未命中的键
     $data = [];
-    foreach ($missedKeys as $params) {
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
         $userId = $params['id'];
         $data[] = getUserFromDatabase($userId);
     }
-    return $data;
+    return $data; // 返回索引数组，按顺序对应
 });
 
 foreach ($results as $userData) {
@@ -186,11 +187,12 @@ $start = microtime(true);
 $results = cache_kv_get_multiple('user.profile', $userParams, function($missedKeys) {
     echo "批量从数据库获取 " . count($missedKeys) . " 个用户...\n";
     $data = [];
-    foreach ($missedKeys as $params) {
+    foreach ($missedKeys as $cacheKey) {
+        $params = $cacheKey->getParams();
         $userId = $params['id'];
         $data[] = getUserFromDatabase($userId);
     }
-    return $data;
+    return $data; // 返回索引数组，按顺序对应
 });
 
 $batchTime = microtime(true) - $start;
