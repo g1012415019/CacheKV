@@ -90,16 +90,6 @@ if (!function_exists('cache_kv_clear_stats')) {
     }
 }
 
-if (!function_exists('cache_kv_sync_stats')) {
-    /**
-     * 强制同步统计数据到Redis
-     */
-    function cache_kv_sync_stats()
-    {
-        \Asfop\CacheKV\Stats\KeyStats::forceSync();
-    }
-}
-
 if (!function_exists('cache_kv_make_key')) {
     /**
      * 创建缓存键对象

@@ -3,26 +3,13 @@
 namespace Asfop\CacheKV\Stats;
 
 /**
- * 键统计管理 - 支持持久化
+ * 键统计管理 - 直接Redis存储
  * 
- * 统计数据持久化到Redis，支持分布式环境
+ * 每次统计操作直接写入Redis，不依赖内存缓存
  * 兼容 PHP 7.0
  */
 class KeyStats
 {
-    /**
-     * 内存中的统计数据缓存
-     * 
-     * @var array
-     */
-    private static $memoryStats = array(
-        'hits' => 0,
-        'misses' => 0,
-        'sets' => 0,
-        'deletes' => 0,
-        'keys' => array() // 键级统计
-    );
-    
     /**
      * 是否启用统计
      * 
@@ -45,18 +32,11 @@ class KeyStats
     private static $statsPrefix = 'cachekv:stats:';
     
     /**
-     * 内存统计同步到Redis的间隔（秒）
+     * 统计数据TTL（7天）
      * 
      * @var int
      */
-    private static $syncInterval = 60;
-    
-    /**
-     * 上次同步时间
-     * 
-     * @var int
-     */
-    private static $lastSyncTime = 0;
+    private static $statsTtl = 604800;
 
     /**
      * 设置Redis驱动
@@ -74,7 +54,6 @@ class KeyStats
     public static function enable()
     {
         self::$enabled = true;
-        self::loadFromRedis(); // 启用时从Redis加载历史数据
     }
 
     /**
@@ -82,7 +61,6 @@ class KeyStats
      */
     public static function disable()
     {
-        self::syncToRedis(); // 禁用前同步到Redis
         self::$enabled = false;
     }
 
@@ -97,69 +75,70 @@ class KeyStats
     }
 
     /**
-     * 批量记录缓存命中（性能优化）
+     * 批量记录缓存命中
      * 
      * @param array $keys 缓存键数组
      */
     public static function recordBatchHits(array $keys)
     {
-        if (empty($keys) || !self::$enabled) {
+        if (empty($keys) || !self::$enabled || !self::$driver) {
             return;
         }
         
-        $count = count($keys);
-        self::$memoryStats['hits'] += $count;
-        
-        // 批量更新键级统计
-        foreach ($keys as $key) {
-            self::incrementKeyCounter($key, 'hits');
+        try {
+            // 增加全局命中计数
+            self::incrementGlobalCounter('hits', count($keys));
+            
+            // 增加热点键计数
+            foreach ($keys as $key) {
+                self::incrementHotKeyCounter($key);
+            }
+        } catch (Exception $e) {
+            // Redis操作失败时忽略，不影响主要功能
         }
-        
-        self::checkAndSync();
     }
 
     /**
-     * 批量记录缓存未命中（性能优化）
+     * 批量记录缓存未命中
      * 
      * @param array $keys 缓存键数组
      */
     public static function recordBatchMisses(array $keys)
     {
-        if (empty($keys) || !self::$enabled) {
+        if (empty($keys) || !self::$enabled || !self::$driver) {
             return;
         }
         
-        $count = count($keys);
-        self::$memoryStats['misses'] += $count;
-        
-        // 批量更新键级统计
-        foreach ($keys as $key) {
-            self::incrementKeyCounter($key, 'misses');
+        try {
+            // 增加全局未命中计数
+            self::incrementGlobalCounter('misses', count($keys));
+            
+            // 增加热点键计数（未命中也算访问）
+            foreach ($keys as $key) {
+                self::incrementHotKeyCounter($key);
+            }
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
         }
-        
-        self::checkAndSync();
     }
 
     /**
-     * 批量记录缓存设置（性能优化）
+     * 批量记录缓存设置
      * 
      * @param array $keys 缓存键数组
      */
     public static function recordBatchSets(array $keys)
     {
-        if (empty($keys) || !self::$enabled) {
+        if (empty($keys) || !self::$enabled || !self::$driver) {
             return;
         }
         
-        $count = count($keys);
-        self::$memoryStats['sets'] += $count;
-        
-        // 批量更新键级统计
-        foreach ($keys as $key) {
-            self::incrementKeyCounter($key, 'sets');
+        try {
+            // 增加全局设置计数
+            self::incrementGlobalCounter('sets', count($keys));
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
         }
-        
-        self::checkAndSync();
     }
 
     /**
@@ -169,13 +148,16 @@ class KeyStats
      */
     public static function recordHit($key)
     {
-        if (!self::$enabled) {
+        if (!self::$enabled || !self::$driver) {
             return;
         }
         
-        self::$memoryStats['hits']++;
-        self::incrementKeyCounter($key, 'hits');
-        self::checkAndSync();
+        try {
+            self::incrementGlobalCounter('hits', 1);
+            self::incrementHotKeyCounter($key);
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
+        }
     }
 
     /**
@@ -185,13 +167,16 @@ class KeyStats
      */
     public static function recordMiss($key)
     {
-        if (!self::$enabled) {
+        if (!self::$enabled || !self::$driver) {
             return;
         }
         
-        self::$memoryStats['misses']++;
-        self::incrementKeyCounter($key, 'misses');
-        self::checkAndSync();
+        try {
+            self::incrementGlobalCounter('misses', 1);
+            self::incrementHotKeyCounter($key);
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
+        }
     }
 
     /**
@@ -201,13 +186,15 @@ class KeyStats
      */
     public static function recordSet($key)
     {
-        if (!self::$enabled) {
+        if (!self::$enabled || !self::$driver) {
             return;
         }
         
-        self::$memoryStats['sets']++;
-        self::incrementKeyCounter($key, 'sets');
-        self::checkAndSync();
+        try {
+            self::incrementGlobalCounter('sets', 1);
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
+        }
     }
 
     /**
@@ -217,13 +204,15 @@ class KeyStats
      */
     public static function recordDelete($key)
     {
-        if (!self::$enabled) {
+        if (!self::$enabled || !self::$driver) {
             return;
         }
         
-        self::$memoryStats['deletes']++;
-        self::incrementKeyCounter($key, 'deletes');
-        self::checkAndSync();
+        try {
+            self::incrementGlobalCounter('deletes', 1);
+        } catch (Exception $e) {
+            // Redis操作失败时忽略
+        }
     }
 
     /**
@@ -233,29 +222,29 @@ class KeyStats
      */
     public static function getGlobalStats()
     {
-        if (!self::$enabled) {
+        if (!self::$enabled || !self::$driver) {
             return array();
         }
         
-        // 从Redis获取最新的持久化数据
-        $persistentStats = self::loadGlobalStatsFromRedis();
-        
-        // 合并内存中的数据
-        $totalStats = array(
-            'hits' => $persistentStats['hits'] + self::$memoryStats['hits'],
-            'misses' => $persistentStats['misses'] + self::$memoryStats['misses'],
-            'sets' => $persistentStats['sets'] + self::$memoryStats['sets'],
-            'deletes' => $persistentStats['deletes'] + self::$memoryStats['deletes'],
-        );
-        
-        // 计算命中率
-        $totalRequests = $totalStats['hits'] + $totalStats['misses'];
-        $hitRate = $totalRequests > 0 ? round(($totalStats['hits'] / $totalRequests) * 100, 2) : 0;
-        
-        $totalStats['total_requests'] = $totalRequests;
-        $totalStats['hit_rate'] = $hitRate . '%';
-        
-        return $totalStats;
+        try {
+            $stats = array(
+                'hits' => self::getGlobalCounter('hits'),
+                'misses' => self::getGlobalCounter('misses'),
+                'sets' => self::getGlobalCounter('sets'),
+                'deletes' => self::getGlobalCounter('deletes'),
+            );
+            
+            // 计算命中率
+            $totalRequests = $stats['hits'] + $stats['misses'];
+            $hitRate = $totalRequests > 0 ? round(($stats['hits'] / $totalRequests) * 100, 2) : 0;
+            
+            $stats['total_requests'] = $totalRequests;
+            $stats['hit_rate'] = $hitRate . '%';
+            
+            return $stats;
+        } catch (Exception $e) {
+            return array();
+        }
     }
 
     /**
@@ -271,7 +260,6 @@ class KeyStats
         }
         
         try {
-            // 从Redis获取热点键数据
             $hotKeysData = self::$driver->get(self::$statsPrefix . 'hot_keys');
             if ($hotKeysData) {
                 $hotKeys = json_decode($hotKeysData, true);
@@ -293,179 +281,86 @@ class KeyStats
      */
     public static function clear()
     {
-        self::$memoryStats = array(
-            'hits' => 0,
-            'misses' => 0,
-            'sets' => 0,
-            'deletes' => 0,
-            'keys' => array()
-        );
+        if (!self::$driver) {
+            return;
+        }
         
-        // 清空Redis中的统计数据
-        if (self::$driver) {
-            try {
-                self::$driver->delete(self::$statsPrefix . 'global');
-                self::$driver->delete(self::$statsPrefix . 'hot_keys');
-            } catch (Exception $e) {
-                // 忽略Redis操作失败
+        try {
+            // 清空所有统计相关的键
+            $keys = array('hits', 'misses', 'sets', 'deletes', 'hot_keys');
+            foreach ($keys as $key) {
+                self::$driver->delete(self::$statsPrefix . $key);
             }
+        } catch (Exception $e) {
+            // 忽略Redis操作失败
         }
     }
 
     /**
-     * 强制同步到Redis
+     * 增加全局计数器
+     * 
+     * @param string $type 计数器类型
+     * @param int $increment 增加数量
      */
-    public static function forceSync()
+    private static function incrementGlobalCounter($type, $increment = 1)
     {
-        self::syncToRedis();
+        $key = self::$statsPrefix . $type;
+        
+        // 尝试使用Redis的INCRBY命令
+        if (method_exists(self::$driver, 'incrBy')) {
+            self::$driver->incrBy($key, $increment);
+            self::$driver->expire($key, self::$statsTtl);
+        } else {
+            // 降级方案：GET -> 计算 -> SET
+            $current = self::$driver->get($key);
+            $current = $current ? (int)$current : 0;
+            $new = $current + $increment;
+            self::$driver->set($key, $new, self::$statsTtl);
+        }
     }
 
     /**
-     * 增加键级计数器
+     * 获取全局计数器值
+     * 
+     * @param string $type 计数器类型
+     * @return int 计数器值
+     */
+    private static function getGlobalCounter($type)
+    {
+        $key = self::$statsPrefix . $type;
+        $value = self::$driver->get($key);
+        return $value ? (int)$value : 0;
+    }
+
+    /**
+     * 增加热点键计数器
      * 
      * @param string $key 缓存键
-     * @param string $type 统计类型
      */
-    private static function incrementKeyCounter($key, $type)
+    private static function incrementHotKeyCounter($key)
     {
-        if (!isset(self::$memoryStats['keys'][$key])) {
-            self::$memoryStats['keys'][$key] = array();
+        $hotKeysKey = self::$statsPrefix . 'hot_keys';
+        
+        // 获取当前热点键数据
+        $hotKeysData = self::$driver->get($hotKeysKey);
+        $hotKeys = $hotKeysData ? json_decode($hotKeysData, true) : array();
+        if (!is_array($hotKeys)) {
+            $hotKeys = array();
         }
         
-        if (!isset(self::$memoryStats['keys'][$key][$type])) {
-            self::$memoryStats['keys'][$key][$type] = 0;
+        // 增加计数
+        if (!isset($hotKeys[$key])) {
+            $hotKeys[$key] = 0;
+        }
+        $hotKeys[$key]++;
+        
+        // 只保留前100个热点键（避免数据过大）
+        if (count($hotKeys) > 100) {
+            arsort($hotKeys);
+            $hotKeys = array_slice($hotKeys, 0, 100, true);
         }
         
-        self::$memoryStats['keys'][$key][$type]++;
-    }
-
-    /**
-     * 检查是否需要同步到Redis
-     */
-    private static function checkAndSync()
-    {
-        $currentTime = time();
-        if ($currentTime - self::$lastSyncTime >= self::$syncInterval) {
-            self::syncToRedis();
-        }
-    }
-
-    /**
-     * 同步内存统计数据到Redis
-     */
-    private static function syncToRedis()
-    {
-        if (!self::$driver) {
-            return;
-        }
-        
-        try {
-            // 同步全局统计
-            $persistentStats = self::loadGlobalStatsFromRedis();
-            $mergedStats = array(
-                'hits' => $persistentStats['hits'] + self::$memoryStats['hits'],
-                'misses' => $persistentStats['misses'] + self::$memoryStats['misses'],
-                'sets' => $persistentStats['sets'] + self::$memoryStats['sets'],
-                'deletes' => $persistentStats['deletes'] + self::$memoryStats['deletes'],
-            );
-            
-            self::$driver->set(
-                self::$statsPrefix . 'global',
-                json_encode($mergedStats),
-                86400 * 7 // 保存7天
-            );
-            
-            // 同步热点键数据
-            if (!empty(self::$memoryStats['keys'])) {
-                $hotKeysData = self::$driver->get(self::$statsPrefix . 'hot_keys');
-                $hotKeys = $hotKeysData ? json_decode($hotKeysData, true) : array();
-                if (!is_array($hotKeys)) {
-                    $hotKeys = array();
-                }
-                
-                // 合并热点键数据
-                foreach (self::$memoryStats['keys'] as $key => $stats) {
-                    $totalAccess = ($stats['hits'] ?? 0) + ($stats['misses'] ?? 0);
-                    if (!isset($hotKeys[$key])) {
-                        $hotKeys[$key] = 0;
-                    }
-                    $hotKeys[$key] += $totalAccess;
-                }
-                
-                // 只保留前100个热点键
-                arsort($hotKeys);
-                $hotKeys = array_slice($hotKeys, 0, 100, true);
-                
-                self::$driver->set(
-                    self::$statsPrefix . 'hot_keys',
-                    json_encode($hotKeys),
-                    86400 * 7 // 保存7天
-                );
-            }
-            
-            // 清空内存统计
-            self::$memoryStats = array(
-                'hits' => 0,
-                'misses' => 0,
-                'sets' => 0,
-                'deletes' => 0,
-                'keys' => array()
-            );
-            
-            self::$lastSyncTime = time();
-            
-        } catch (Exception $e) {
-            // Redis操作失败时忽略，不影响主要功能
-        }
-    }
-
-    /**
-     * 从Redis加载统计数据到内存
-     */
-    private static function loadFromRedis()
-    {
-        if (!self::$driver) {
-            return;
-        }
-        
-        try {
-            $globalStats = self::loadGlobalStatsFromRedis();
-            // 注意：这里不直接覆盖内存统计，而是在获取时合并
-        } catch (Exception $e) {
-            // Redis操作失败时忽略
-        }
-    }
-
-    /**
-     * 从Redis加载全局统计数据
-     * 
-     * @return array
-     */
-    private static function loadGlobalStatsFromRedis()
-    {
-        $defaultStats = array(
-            'hits' => 0,
-            'misses' => 0,
-            'sets' => 0,
-            'deletes' => 0,
-        );
-        
-        if (!self::$driver) {
-            return $defaultStats;
-        }
-        
-        try {
-            $data = self::$driver->get(self::$statsPrefix . 'global');
-            if ($data) {
-                $stats = json_decode($data, true);
-                if (is_array($stats)) {
-                    return array_merge($defaultStats, $stats);
-                }
-            }
-        } catch (Exception $e) {
-            // Redis操作失败时返回默认值
-        }
-        
-        return $defaultStats;
+        // 保存回Redis
+        self::$driver->set($hotKeysKey, json_encode($hotKeys), self::$statsTtl);
     }
 }
