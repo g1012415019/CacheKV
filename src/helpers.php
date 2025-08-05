@@ -43,8 +43,11 @@ if (!function_exists('cache_kv_get_multiple')) {
 
         $cache = CacheKVFactory::getInstance();
         
-        // 使用批量键生成函数
-        $cacheKeys = cache_kv_make_keys($template, $paramsList);
+        // 使用批量键生成函数，获取 CacheKeyCollection
+        $keyCollection = cache_kv_make_keys($template, $paramsList);
+        
+        // 获取 CacheKey 数组
+        $cacheKeys = $keyCollection->getKeys();
 
         return $cache->getMultiple($cacheKeys, $callback);
     }
@@ -111,16 +114,16 @@ if (!function_exists('cache_kv_make_key')) {
 
 if (!function_exists('cache_kv_make_keys')) {
     /**
-     * 批量创建缓存键对象
+     * 批量创建缓存键集合
      * 
      * @param string $template 键模板，格式：'group.key'
      * @param array $paramsList 参数数组列表，每个元素必须是数组
-     * @return CacheKey[] 缓存键对象数组
+     * @return \Asfop\CacheKV\Key\CacheKeyCollection 缓存键集合对象
      */
     function cache_kv_make_keys($template, array $paramsList)
     {
         if (empty($paramsList)) {
-            return array();
+            return new \Asfop\CacheKV\Key\CacheKeyCollection(array());
         }
 
         $cacheKeys = array();
@@ -130,23 +133,6 @@ if (!function_exists('cache_kv_make_keys')) {
             }
         }
 
-        return $cacheKeys;
-    }
-}
-
-if (!function_exists('cache_kv_keys_to_strings')) {
-    /**
-     * 将缓存键对象数组转换为字符串数组
-     * 
-     * @param CacheKey[] $cacheKeys 缓存键对象数组
-     * @return string[] 缓存键字符串数组
-     */
-    function cache_kv_keys_to_strings(array $cacheKeys)
-    {
-        $keyStrings = array();
-        foreach ($cacheKeys as $cacheKey) {
-            $keyStrings[] = (string)$cacheKey;
-        }
-        return $keyStrings;
+        return new \Asfop\CacheKV\Key\CacheKeyCollection($cacheKeys);
     }
 }
