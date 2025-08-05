@@ -42,14 +42,9 @@ if (!function_exists('cache_kv_get_multiple')) {
         }
 
         $cache = CacheKVFactory::getInstance();
-        $cacheKeys = array();
-
-        // 构建CacheKey数组
-        foreach ($paramsList as $params) {
-            if (is_array($params)) {
-                $cacheKeys[] = cache_kv_make_key($template, $params);
-            }
-        }
+        
+        // 使用批量键生成函数
+        $cacheKeys = cache_kv_make_keys($template, $paramsList);
 
         return $cache->getMultiple($cacheKeys, $callback);
     }
@@ -111,5 +106,56 @@ if (!function_exists('cache_kv_make_key')) {
         
         // 委托给KeyManager处理，让它负责验证和创建
         return KeyManager::getInstance()->createKey($groupName, $keyName, $params);
+    }
+}
+
+if (!function_exists('cache_kv_make_keys')) {
+    /**
+     * 批量创建缓存键对象
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表，每个元素必须是数组
+     * @return CacheKey[] 缓存键对象数组
+     */
+    function cache_kv_make_keys($template, array $paramsList)
+    {
+        if (empty($paramsList)) {
+            return array();
+        }
+
+        $cacheKeys = array();
+        foreach ($paramsList as $params) {
+            if (is_array($params)) {
+                $cacheKeys[] = cache_kv_make_key($template, $params);
+            }
+        }
+
+        return $cacheKeys;
+    }
+}
+
+if (!function_exists('cache_kv_get_key_strings')) {
+    /**
+     * 批量获取缓存键字符串
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表，每个元素必须是数组
+     * @return string[] 缓存键字符串数组
+     */
+    function cache_kv_get_key_strings($template, array $paramsList)
+    {
+        if (empty($paramsList)) {
+            return array();
+        }
+
+        $keyStrings = array();
+        foreach ($paramsList as $params) {
+            if (is_array($params)) {
+                $cacheKey = cache_kv_make_key($template, $params);
+                $keyStrings[] = (string)$cacheKey;
+            }
+        }
+
+        return $keyStrings;
     }
 }
