@@ -111,27 +111,42 @@ if (!function_exists('cache_kv_make_key')) {
 
 if (!function_exists('cache_kv_make_keys')) {
     /**
-     * 批量创建缓存键
+     * 批量创建缓存键对象
      * 
      * @param string $template 键模板，格式：'group.key'
      * @param array $paramsList 参数数组列表，每个元素必须是数组
-     * @param bool $asString 是否返回字符串数组，默认false返回CacheKey对象数组
-     * @return CacheKey[]|string[] 缓存键对象数组或字符串数组
+     * @return CacheKey[] 缓存键对象数组
      */
-    function cache_kv_make_keys($template, array $paramsList, $asString = false)
+    function cache_kv_make_keys($template, array $paramsList)
     {
         if (empty($paramsList)) {
             return array();
         }
 
-        $result = array();
+        $cacheKeys = array();
         foreach ($paramsList as $params) {
             if (is_array($params)) {
-                $cacheKey = cache_kv_make_key($template, $params);
-                $result[] = $asString ? (string)$cacheKey : $cacheKey;
+                $cacheKeys[] = cache_kv_make_key($template, $params);
             }
         }
 
-        return $result;
+        return $cacheKeys;
+    }
+}
+
+if (!function_exists('cache_kv_keys_to_strings')) {
+    /**
+     * 将缓存键对象数组转换为字符串数组
+     * 
+     * @param CacheKey[] $cacheKeys 缓存键对象数组
+     * @return string[] 缓存键字符串数组
+     */
+    function cache_kv_keys_to_strings(array $cacheKeys)
+    {
+        $keyStrings = array();
+        foreach ($cacheKeys as $cacheKey) {
+            $keyStrings[] = (string)$cacheKey;
+        }
+        return $keyStrings;
     }
 }
