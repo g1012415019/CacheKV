@@ -179,35 +179,10 @@ class CacheKey
             'group_name' => $this->groupName,
             'key_name' => $this->keyName,
             'params' => $this->params,
-            'full_key' => $this->__toString()
+            'full_key' => $this->__toString(),
+            'is_kv_key' => $this->isKvKey(),
+            'stats_enabled' => $this->isStatsEnabled()
         );
-        
-        // 添加分组信息
-        $result['group_info'] = array(
-            'name' => $this->groupConfig->getName(),
-            'prefix' => $this->groupConfig->getPrefix(),
-            'version' => $this->groupConfig->getVersion(),
-            'description' => $this->groupConfig->getDescription()
-        );
-        
-        // 添加键信息
-        if ($this->keyConfig !== null) {
-            $result['key_info'] = array(
-                'name' => $this->keyConfig->getName(),
-                'template' => $this->keyConfig->getTemplate(),
-                'type' => $this->keyConfig->getType(),
-                'description' => $this->keyConfig->getDescription(),
-                'has_cache_config' => $this->keyConfig->hasCacheConfig()
-            );
-            
-            // 添加缓存配置信息（完整的配置数组）
-            $cacheConfig = $this->keyConfig->getCacheConfig();
-            if ($cacheConfig !== null) {
-                $result['cache_info'] = $cacheConfig->toArray();
-            }
-        } else {
-            $result['key_info'] = null;
-        }
         
         return $result;
     }

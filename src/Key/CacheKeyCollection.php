@@ -71,48 +71,18 @@ class CacheKeyCollection
     }
 
     /**
-     * 获取第一个 CacheKey
+     * 获取指定索引的 CacheKey
      * 
+     * @param int $index 索引
      * @return CacheKey|null
      */
-    public function first()
+    public function get($index)
     {
-        return !empty($this->cacheKeys) ? $this->cacheKeys[0] : null;
+        return isset($this->cacheKeys[$index]) ? $this->cacheKeys[$index] : null;
     }
 
     /**
-     * 获取最后一个 CacheKey
-     * 
-     * @return CacheKey|null
-     */
-    public function last()
-    {
-        return !empty($this->cacheKeys) ? end($this->cacheKeys) : null;
-    }
-
-    /**
-     * 支持 foreach 遍历
-     * 
-     * @return \ArrayIterator
-     */
-    public function getIterator()
-    {
-        return new \ArrayIterator($this->cacheKeys);
-    }
-
-    /**
-     * 支持数组访问
-     * 
-     * @param int $offset 索引
-     * @return CacheKey|null
-     */
-    public function get($offset)
-    {
-        return isset($this->cacheKeys[$offset]) ? $this->cacheKeys[$offset] : null;
-    }
-
-    /**
-     * 转换为数组格式（用于调试）
+     * 转换为简化数组格式（用于调试）
      * 
      * @return array
      */
@@ -122,8 +92,6 @@ class CacheKeyCollection
         foreach ($this->cacheKeys as $i => $cacheKey) {
             $result[$i] = array(
                 'string' => (string)$cacheKey,
-                'group' => $cacheKey->getGroupName(),
-                'key' => $cacheKey->getKeyName(),
                 'params' => $cacheKey->getParams()
             );
         }

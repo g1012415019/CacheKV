@@ -127,15 +127,6 @@ class KeyManager
      */
     public function createKey($groupName, $keyName, array $params = array())
     {
-        // 基本输入验证
-        if (empty($groupName) || !is_string($groupName)) {
-            throw new CacheException("Group name must be a non-empty string");
-        }
-        
-        if (empty($keyName) || !is_string($keyName)) {
-            throw new CacheException("Key name must be a non-empty string");
-        }
-        
         // 获取分组配置
         $groupConfig = $this->config->getGroup($groupName);
         if ($groupConfig === null) {
@@ -148,7 +139,7 @@ class KeyManager
         // 生成完整键
         $fullKey = $this->makeKey($groupName, $keyName, $params);
         
-        // 创建 CacheKey 对象，建立正确的对象关系
+        // 创建 CacheKey 对象
         return new CacheKey($groupName, $keyName, $params, $groupConfig, $keyConfig, $fullKey);
     }
 
@@ -157,14 +148,9 @@ class KeyManager
      * 
      * @param string $groupName 分组名称
      * @return GroupKeyBuilder
-     * @throws CacheException
      */
     public function group($groupName)
     {
-        if (!$this->config->hasGroup($groupName)) {
-            throw new CacheException("Group '{$groupName}' not found");
-        }
-        
         return new GroupKeyBuilder($this, $groupName);
     }
 

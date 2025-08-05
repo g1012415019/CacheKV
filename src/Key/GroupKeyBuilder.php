@@ -37,25 +37,13 @@ class GroupKeyBuilder
     }
 
     /**
-     * 生成键字符串
-     * 
-     * @param string $keyName 键名称
-     * @param array $params 参数数组
-     * @return string 完整的缓存键
-     */
-    public function key($keyName, array $params = array())
-    {
-        return $this->keyManager->makeKey($this->groupName, $keyName, $params);
-    }
-
-    /**
      * 创建键对象
      * 
      * @param string $keyName 键名称
      * @param array $params 参数数组
      * @return CacheKey 缓存键对象
      */
-    public function createKey($keyName, array $params = array())
+    public function key($keyName, array $params = array())
     {
         return $this->keyManager->createKey($this->groupName, $keyName, $params);
     }
