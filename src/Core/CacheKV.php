@@ -341,7 +341,7 @@ class CacheKV
                 if (!empty($batchSetData)) {
                     // 获取TTL（使用第一个键的配置）
                     $firstKey = reset($missedKeys);
-                    $ttl = $firstKey->getTtl();
+                    $ttl = $this->getTtl($firstKey);
                     
                     $this->driver->setMultiple($batchSetData, $ttl);
                     
