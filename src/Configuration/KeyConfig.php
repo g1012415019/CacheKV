@@ -124,16 +124,6 @@ class KeyConfig
     }
 
     /**
-     * 检查是否为其他类型
-     * 
-     * @return bool
-     */
-    public function isOtherType()
-    {
-        return $this->type === 'other';
-    }
-
-    /**
      * 检查是否有缓存配置
      * 
      * @return bool

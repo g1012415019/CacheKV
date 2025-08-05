@@ -5,7 +5,7 @@ namespace Asfop\CacheKV\Configuration;
 /**
  * 缓存配置对象 - 简化版
  * 
- * 只保留核心配置项，去掉不必要的复杂配置
+ * 使用通用的 getter 模式减少重复代码
  * 兼容 PHP 7.0
  */
 class CacheConfig
@@ -18,6 +18,26 @@ class CacheConfig
     private $config;
 
     /**
+     * 默认配置值
+     * 
+     * @var array
+     */
+    private static $defaults = array(
+        'ttl' => 3600,
+        'null_cache_ttl' => 300,
+        'enable_null_cache' => true,
+        'ttl_random_range' => 300,
+        'enable_stats' => true,
+        'stats_prefix' => 'cachekv:stats:',
+        'stats_ttl' => 604800,
+        'hot_key_auto_renewal' => true,
+        'hot_key_threshold' => 100,
+        'hot_key_extend_ttl' => 7200,
+        'hot_key_max_ttl' => 86400,
+        'tag_prefix' => 'tag:'
+    );
+
+    /**
      * 构造函数
      * 
      * @param array $config 配置数组
@@ -27,145 +47,52 @@ class CacheConfig
         $this->config = $config;
     }
 
+    /**
+     * 通用配置获取方法
+     * 
+     * @param string $key 配置键
+     * @param mixed $default 默认值
+     * @param string $type 类型转换 (int|bool|string)
+     * @return mixed
+     */
+    private function getValue($key, $default = null, $type = 'string')
+    {
+        $value = isset($this->config[$key]) ? $this->config[$key] : 
+                 (isset(self::$defaults[$key]) ? self::$defaults[$key] : $default);
+        
+        switch ($type) {
+            case 'int':
+                return (int)$value;
+            case 'bool':
+                return (bool)$value;
+            default:
+                return (string)$value;
+        }
+    }
+
     // ==================== 基础缓存配置 ====================
-
-    /**
-     * 获取TTL
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getTtl($default = 3600)
-    {
-        return isset($this->config['ttl']) ? (int)$this->config['ttl'] : $default;
-    }
-
-    /**
-     * 获取空值缓存TTL
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getNullCacheTtl($default = 300)
-    {
-        return isset($this->config['null_cache_ttl']) ? (int)$this->config['null_cache_ttl'] : $default;
-    }
-
-    /**
-     * 是否启用空值缓存
-     * 
-     * @param bool $default 默认值
-     * @return bool
-     */
-    public function isEnableNullCache($default = true)
-    {
-        return isset($this->config['enable_null_cache']) ? (bool)$this->config['enable_null_cache'] : $default;
-    }
-
-    /**
-     * 获取TTL随机范围
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getTtlRandomRange($default = 300)
-    {
-        return isset($this->config['ttl_random_range']) ? (int)$this->config['ttl_random_range'] : $default;
-    }
+    
+    public function getTtl($default = null) { return $this->getValue('ttl', $default, 'int'); }
+    public function getNullCacheTtl($default = null) { return $this->getValue('null_cache_ttl', $default, 'int'); }
+    public function isEnableNullCache($default = null) { return $this->getValue('enable_null_cache', $default, 'bool'); }
+    public function getTtlRandomRange($default = null) { return $this->getValue('ttl_random_range', $default, 'int'); }
 
     // ==================== 统计配置 ====================
-
-    /**
-     * 是否启用统计
-     * 
-     * @param bool $default 默认值
-     * @return bool
-     */
-    public function isEnableStats($default = true)
-    {
-        return isset($this->config['enable_stats']) ? (bool)$this->config['enable_stats'] : $default;
-    }
-
-    /**
-     * 获取统计数据Redis键前缀
-     * 
-     * @param string $default 默认值
-     * @return string
-     */
-    public function getStatsPrefix($default = 'cachekv:stats:')
-    {
-        return isset($this->config['stats_prefix']) ? (string)$this->config['stats_prefix'] : $default;
-    }
-
-    /**
-     * 获取统计数据TTL
-     * 
-     * @param int $default 默认值（7天）
-     * @return int
-     */
-    public function getStatsTtl($default = 604800)
-    {
-        return isset($this->config['stats_ttl']) ? (int)$this->config['stats_ttl'] : $default;
-    }
+    
+    public function isEnableStats($default = null) { return $this->getValue('enable_stats', $default, 'bool'); }
+    public function getStatsPrefix($default = null) { return $this->getValue('stats_prefix', $default, 'string'); }
+    public function getStatsTtl($default = null) { return $this->getValue('stats_ttl', $default, 'int'); }
 
     // ==================== 热点键自动续期配置 ====================
-
-    /**
-     * 是否启用热点键自动续期
-     * 
-     * @param bool $default 默认值
-     * @return bool
-     */
-    public function isHotKeyAutoRenewal($default = true)
-    {
-        return isset($this->config['hot_key_auto_renewal']) ? (bool)$this->config['hot_key_auto_renewal'] : $default;
-    }
-
-    /**
-     * 获取热点键阈值
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getHotKeyThreshold($default = 100)
-    {
-        return isset($this->config['hot_key_threshold']) ? (int)$this->config['hot_key_threshold'] : $default;
-    }
-
-    /**
-     * 获取热点键延长TTL
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getHotKeyExtendTtl($default = 7200)
-    {
-        return isset($this->config['hot_key_extend_ttl']) ? (int)$this->config['hot_key_extend_ttl'] : $default;
-    }
-
-    /**
-     * 获取热点键最大TTL
-     * 
-     * @param int $default 默认值
-     * @return int
-     */
-    public function getHotKeyMaxTtl($default = 86400)
-    {
-        return isset($this->config['hot_key_max_ttl']) ? (int)$this->config['hot_key_max_ttl'] : $default;
-    }
+    
+    public function isHotKeyAutoRenewal($default = null) { return $this->getValue('hot_key_auto_renewal', $default, 'bool'); }
+    public function getHotKeyThreshold($default = null) { return $this->getValue('hot_key_threshold', $default, 'int'); }
+    public function getHotKeyExtendTtl($default = null) { return $this->getValue('hot_key_extend_ttl', $default, 'int'); }
+    public function getHotKeyMaxTtl($default = null) { return $this->getValue('hot_key_max_ttl', $default, 'int'); }
 
     // ==================== 标签配置 ====================
-
-    /**
-     * 获取标签前缀
-     * 
-     * @param string $default 默认值
-     * @return string
-     */
-    public function getTagPrefix($default = 'tag:')
-    {
-        return isset($this->config['tag_prefix']) ? (string)$this->config['tag_prefix'] : $default;
-    }
+    
+    public function getTagPrefix($default = null) { return $this->getValue('tag_prefix', $default, 'string'); }
 
     // ==================== 通用方法 ====================
 
@@ -223,8 +150,6 @@ class CacheConfig
      */
     public static function merge(array $globalConfig = array(), array $groupConfig = array(), array $keyConfig = array())
     {
-        // 按优先级合并：全局配置 -> 组级配置 -> 键级配置
-        $mergedConfig = array_merge($globalConfig, $groupConfig, $keyConfig);
-        return new self($mergedConfig);
+        return new self(array_merge($globalConfig, $groupConfig, $keyConfig));
     }
 }

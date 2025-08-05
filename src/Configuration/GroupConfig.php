@@ -159,37 +159,8 @@ class GroupConfig
      */
     public function getKey($keyName)
     {
-        if (isset($this->kvKeys[$keyName])) {
-            return $this->kvKeys[$keyName];
-        }
-        
-        if (isset($this->otherKeys[$keyName])) {
-            return $this->otherKeys[$keyName];
-        }
-        
-        return null;
-    }
-
-    /**
-     * 获取指定的KV键配置
-     * 
-     * @param string $keyName 键名称
-     * @return KeyConfig|null
-     */
-    public function getKvKey($keyName)
-    {
-        return isset($this->kvKeys[$keyName]) ? $this->kvKeys[$keyName] : null;
-    }
-
-    /**
-     * 获取指定的其他类型键配置
-     * 
-     * @param string $keyName 键名称
-     * @return KeyConfig|null
-     */
-    public function getOtherKey($keyName)
-    {
-        return isset($this->otherKeys[$keyName]) ? $this->otherKeys[$keyName] : null;
+        return isset($this->kvKeys[$keyName]) ? $this->kvKeys[$keyName] : 
+               (isset($this->otherKeys[$keyName]) ? $this->otherKeys[$keyName] : null);
     }
 
     /**
@@ -212,17 +183,6 @@ class GroupConfig
     public function hasKvKey($keyName)
     {
         return isset($this->kvKeys[$keyName]);
-    }
-
-    /**
-     * 检查其他类型键是否存在
-     * 
-     * @param string $keyName 键名称
-     * @return bool
-     */
-    public function hasOtherKey($keyName)
-    {
-        return isset($this->otherKeys[$keyName]);
     }
 
     /**

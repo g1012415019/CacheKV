@@ -98,16 +98,6 @@ class KeyManagerConfig
     }
 
     /**
-     * 获取所有分组名称
-     * 
-     * @return array
-     */
-    public function getGroupNames()
-    {
-        return array_keys($this->groups);
-    }
-
-    /**
      * 从数组创建配置实例
      * 
      * @param array $config 配置数组
