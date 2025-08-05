@@ -51,14 +51,19 @@ class CacheConfig
      * 通用配置获取方法
      * 
      * @param string $key 配置键
-     * @param mixed $default 默认值
+     * @param mixed $userDefault 用户传入的默认值
      * @param string $type 类型转换 (int|bool|string)
      * @return mixed
      */
-    private function getValue($key, $default = null, $type = 'string')
+    private function getValue($key, $userDefault = null, $type = 'string')
     {
-        $value = isset($this->config[$key]) ? $this->config[$key] : 
-                 (isset(self::$defaults[$key]) ? self::$defaults[$key] : $default);
+        if (isset($this->config[$key])) {
+            $value = $this->config[$key];
+        } else {
+            // 优先使用用户传入的默认值，如果没有则使用系统默认值
+            $value = $userDefault !== null ? $userDefault : 
+                     (isset(self::$defaults[$key]) ? self::$defaults[$key] : null);
+        }
         
         switch ($type) {
             case 'int':
@@ -72,27 +77,27 @@ class CacheConfig
 
     // ==================== 基础缓存配置 ====================
     
-    public function getTtl($default = null) { return $this->getValue('ttl', $default, 'int'); }
-    public function getNullCacheTtl($default = null) { return $this->getValue('null_cache_ttl', $default, 'int'); }
-    public function isEnableNullCache($default = null) { return $this->getValue('enable_null_cache', $default, 'bool'); }
-    public function getTtlRandomRange($default = null) { return $this->getValue('ttl_random_range', $default, 'int'); }
+    public function getTtl($default = 3600) { return $this->getValue('ttl', $default, 'int'); }
+    public function getNullCacheTtl($default = 300) { return $this->getValue('null_cache_ttl', $default, 'int'); }
+    public function isEnableNullCache($default = true) { return $this->getValue('enable_null_cache', $default, 'bool'); }
+    public function getTtlRandomRange($default = 300) { return $this->getValue('ttl_random_range', $default, 'int'); }
 
     // ==================== 统计配置 ====================
     
-    public function isEnableStats($default = null) { return $this->getValue('enable_stats', $default, 'bool'); }
-    public function getStatsPrefix($default = null) { return $this->getValue('stats_prefix', $default, 'string'); }
-    public function getStatsTtl($default = null) { return $this->getValue('stats_ttl', $default, 'int'); }
+    public function isEnableStats($default = true) { return $this->getValue('enable_stats', $default, 'bool'); }
+    public function getStatsPrefix($default = 'cachekv:stats:') { return $this->getValue('stats_prefix', $default, 'string'); }
+    public function getStatsTtl($default = 604800) { return $this->getValue('stats_ttl', $default, 'int'); }
 
     // ==================== 热点键自动续期配置 ====================
     
-    public function isHotKeyAutoRenewal($default = null) { return $this->getValue('hot_key_auto_renewal', $default, 'bool'); }
-    public function getHotKeyThreshold($default = null) { return $this->getValue('hot_key_threshold', $default, 'int'); }
-    public function getHotKeyExtendTtl($default = null) { return $this->getValue('hot_key_extend_ttl', $default, 'int'); }
-    public function getHotKeyMaxTtl($default = null) { return $this->getValue('hot_key_max_ttl', $default, 'int'); }
+    public function isHotKeyAutoRenewal($default = true) { return $this->getValue('hot_key_auto_renewal', $default, 'bool'); }
+    public function getHotKeyThreshold($default = 100) { return $this->getValue('hot_key_threshold', $default, 'int'); }
+    public function getHotKeyExtendTtl($default = 7200) { return $this->getValue('hot_key_extend_ttl', $default, 'int'); }
+    public function getHotKeyMaxTtl($default = 86400) { return $this->getValue('hot_key_max_ttl', $default, 'int'); }
 
     // ==================== 标签配置 ====================
     
-    public function getTagPrefix($default = null) { return $this->getValue('tag_prefix', $default, 'string'); }
+    public function getTagPrefix($default = 'tag:') { return $this->getValue('tag_prefix', $default, 'string'); }
 
     // ==================== 通用方法 ====================
 
