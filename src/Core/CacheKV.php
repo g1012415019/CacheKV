@@ -39,9 +39,14 @@ class CacheKV
         $this->driver = $driver;
         
         // 启用统计功能（如果配置启用）
-        $cacheConfig = ConfigManager::getCacheConfig();
-        if ($cacheConfig->isEnableStats()) {
-            KeyStats::enable();
+        try {
+            $cacheConfig = ConfigManager::getGlobalCacheConfigObject();
+            if ($cacheConfig->isEnableStats()) {
+                KeyStats::enable();
+            }
+        } catch (\Exception $e) {
+            // 如果配置未加载，默认不启用统计功能
+            // 这样可以保证在没有配置的情况下也能正常工作
         }
     }
 

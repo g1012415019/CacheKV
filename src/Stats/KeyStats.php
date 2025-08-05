@@ -42,7 +42,7 @@ class KeyStats
     private static function getStatsPrefix()
     {
         try {
-            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getCacheConfig();
+            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getGlobalCacheConfigObject();
             return $cacheConfig->getStatsPrefix();
         } catch (Exception $e) {
             return 'cachekv:stats:'; // 默认值
@@ -57,7 +57,7 @@ class KeyStats
     private static function getStatsTtl()
     {
         try {
-            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getCacheConfig();
+            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getGlobalCacheConfigObject();
             return $cacheConfig->getStatsTtl();
         } catch (Exception $e) {
             return 604800; // 默认7天
@@ -302,6 +302,50 @@ class KeyStats
             return is_array($result) ? $result : array();
         } catch (Exception $e) {
             return array();
+        }
+    }
+
+    /**
+     * 获取指定键的访问频率
+     * 
+     * @param string $key 缓存键
+     * @return int 访问频率
+     */
+    public static function getKeyFrequency($key)
+    {
+        if (!self::$enabled || !self::$driver) {
+            return 0;
+        }
+        
+        try {
+            $score = self::$driver->zscore(self::getStatsPrefix() . 'hot_keys', $key);
+            return $score !== false ? (int)$score : 0;
+        } catch (Exception $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * 获取指定键的统计信息
+     * 
+     * @param string $key 缓存键
+     * @return array|null 统计信息数组
+     */
+    public static function getKeyStats($key)
+    {
+        if (!self::$enabled || !self::$driver) {
+            return null;
+        }
+        
+        try {
+            $frequency = self::getKeyFrequency($key);
+            return array(
+                'key' => $key,
+                'frequency' => $frequency,
+                'last_accessed' => time() // 简化实现
+            );
+        } catch (Exception $e) {
+            return null;
         }
     }
 
