@@ -32,7 +32,7 @@ if (!function_exists('cache_kv_get_multiple')) {
      * 
      * @param string $template 模板名称，如 'user.profile'
      * @param array $paramsList 参数数组列表，每个元素必须是数组
-     * @param callable|null $callback 回调函数
+     * @param callable|null $callback 回调函数，必须返回关联数组格式：['key_string' => 'data', ...]
      * @return array 结果数组
      */
     function cache_kv_get_multiple($template, array $paramsList, $callback = null)

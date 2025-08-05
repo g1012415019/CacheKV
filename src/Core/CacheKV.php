@@ -223,7 +223,7 @@ class CacheKV
      * 批量获取缓存
      *
      * @param CacheKey[] $cacheKeys 缓存键对象数组
-     * @param callable|null $callback 回调函数，参数为未命中的键数组
+     * @param callable|null $callback 回调函数，参数为未命中的键数组，必须返回关联数组格式：['key_string' => 'data', ...]
      * @return array 结果数组，键为CacheKey字符串，值为缓存数据
      */
     public function getMultiple(array $cacheKeys, $callback = null)
@@ -290,55 +290,24 @@ class CacheKV
         if (!empty($missedKeys) && $callback !== null) {
             $callbackResults = $callback($missedKeys);
 
-            if (is_array($callbackResults)) {
+            if (is_array($callbackResults) && !empty($callbackResults)) {
                 $batchSetData = array(); // 用于批量设置缓存
                 $setKeyStrings = array(); // 用于批量统计
                 
-                // 检测数组格式：连续索引数组 vs 关联数组
-                $isEmpty = empty($callbackResults);
-                $isSequentialArray = false;
-                
-                if (!$isEmpty) {
-                    $keys = array_keys($callbackResults);
-                    $isSequentialArray = ($keys === range(0, count($callbackResults) - 1));
-                }
-                
-                if (!$isEmpty && !$isSequentialArray) {
-                    // 关联数组格式：键字符串 => 数据
-                    foreach ($callbackResults as $keyString => $data) {
-                        if (isset($keyMap[$keyString])) {
-                            $cacheKey = $keyMap[$keyString];
-                            
-                            // 收集统计键
-                            if ($cacheKey->isStatsEnabled()) {
-                                $setKeyStrings[] = $keyString;
-                            }
-                            
-                            // 准备批量设置数据
-                            $serializedData = ($data === null) ? self::NULL_VALUE : $this->serialize($data);
-                            $batchSetData[$keyString] = $serializedData;
-                            $finalResults[$keyString] = $data;
+                // 只支持关联数组格式：键字符串 => 数据
+                foreach ($callbackResults as $keyString => $data) {
+                    if (isset($keyMap[$keyString])) {
+                        $cacheKey = $keyMap[$keyString];
+                        
+                        // 收集统计键
+                        if ($cacheKey->isStatsEnabled()) {
+                            $setKeyStrings[] = $keyString;
                         }
-                    }
-                } else if (!$isEmpty) {
-                    // 索引数组格式：按顺序匹配
-                    $index = 0;
-                    foreach ($missedKeys as $cacheKey) {
-                        if (isset($callbackResults[$index])) {
-                            $keyString = (string)$cacheKey;
-                            $data = $callbackResults[$index];
-                            
-                            // 收集统计键
-                            if ($cacheKey->isStatsEnabled()) {
-                                $setKeyStrings[] = $keyString;
-                            }
-                            
-                            // 准备批量设置数据
-                            $serializedData = ($data === null) ? self::NULL_VALUE : $this->serialize($data);
-                            $batchSetData[$keyString] = $serializedData;
-                            $finalResults[$keyString] = $data;
-                            $index++;
-                        }
+                        
+                        // 准备批量设置数据
+                        $serializedData = ($data === null) ? self::NULL_VALUE : $this->serialize($data);
+                        $batchSetData[$keyString] = $serializedData;
+                        $finalResults[$keyString] = $data;
                     }
                 }
                 
