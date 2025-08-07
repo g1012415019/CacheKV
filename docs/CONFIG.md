@@ -36,22 +36,26 @@ return array(
     'key_manager' => array(
         'app_prefix' => 'myapp',
         'separator' => ':',
-        // groups 会自动从 kvconf/ 目录加载
+        'groups' => array(
+            // 在这里手动配置各个分组
+            // 'user' => require __DIR__ . '/groups/user.php',
+            // 'goods' => require __DIR__ . '/groups/goods.php',
+        ),
     ),
 );
 ```
 
-**分组配置目录** `config/kvconf/`：
+**分组配置目录** `config/groups/`：
 ```
 config/
 ├── cache_kv.php          # 主配置文件
-└── kvconf/               # 分组配置目录
+└── groups/               # 分组配置目录（可选）
     ├── user.php          # 用户模块配置
     ├── goods.php         # 商品模块配置
     └── article.php       # 文章模块配置
 ```
 
-**分组配置文件示例** `config/kvconf/user.php`：
+**分组配置文件示例** `config/groups/user.php`：
 ```php
 <?php
 return array(
@@ -182,9 +186,34 @@ return array(
 
 ## 使用示例
 
+### 配置分组
+
+**在主配置文件中手动引用分组配置**：
+
+```php
+<?php
+// config/cache_kv.php
+return array(
+    'cache' => array(
+        'ttl' => 3600,
+        'enable_stats' => true,
+    ),
+    'key_manager' => array(
+        'app_prefix' => 'myapp',
+        'separator' => ':',
+        'groups' => array(
+            // 手动引用分组配置文件
+            'user' => require __DIR__ . '/groups/user.php',
+            'goods' => require __DIR__ . '/groups/goods.php',
+            'article' => require __DIR__ . '/groups/article.php',
+        ),
+    ),
+);
+```
+
 ### 创建分组配置
 
-**1. 用户模块开发者创建** `config/kvconf/user.php`：
+**1. 用户模块开发者创建** `config/groups/user.php`：
 ```php
 <?php
 return array(
@@ -197,7 +226,7 @@ return array(
 );
 ```
 
-**2. 商品模块开发者创建** `config/kvconf/goods.php`：
+**2. 商品模块开发者创建** `config/groups/goods.php`：
 ```php
 <?php
 return array(
@@ -284,7 +313,7 @@ project/
 │       └── config/goods.php        # 商品模块配置
 └── config/
     ├── cache_kv.php                # 主配置
-    └── kvconf/                     # 分组配置目录
+    └── groups/                     # 分组配置目录（可选）
         ├── user.php -> ../modules/user/config/user.php
         └── goods.php -> ../modules/goods/config/goods.php
 ```
