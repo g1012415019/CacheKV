@@ -658,4 +658,45 @@ class CacheKV
         
         return $deletedCount;
     }
+
+    /**
+     * 通过模板获取缓存数据
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $params 参数数组
+     * @param callable|null $callback 回调函数
+     * @param int|null $ttl 自定义TTL
+     * @return mixed 缓存数据或回调结果
+     */
+    public function getByTemplate($template, array $params, $callback = null, $ttl = null)
+    {
+        // 创建 CacheKey 对象
+        $cacheKey = KeyManager::getInstance()->createKeyFromTemplate($template, $params);
+        
+        // 使用现有的 get 方法
+        return $this->get($cacheKey, $callback, $ttl);
+    }
+
+    /**
+     * 通过模板批量获取缓存数据
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表
+     * @param callable|null $callback 回调函数
+     * @return array 结果数组
+     */
+    public function getMultipleByTemplate($template, array $paramsList, $callback = null)
+    {
+        if (empty($paramsList)) {
+            return array();
+        }
+        
+        // 使用批量键生成函数，获取 CacheKeyCollection
+        $keyCollection = KeyManager::getInstance()->createKeyCollection($template, $paramsList);
+        
+        // 获取 CacheKey 数组
+        $cacheKeys = $keyCollection->getKeys();
+
+        return $this->getMultiple($cacheKeys, $callback);
+    }
 }

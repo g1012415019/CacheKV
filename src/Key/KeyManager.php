@@ -179,6 +179,29 @@ class KeyManager
     }
 
     /**
+     * 从模板创建缓存键对象
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $params 参数数组
+     * @return CacheKey 缓存键对象
+     * @throws CacheException
+     */
+    public function createKeyFromTemplate($template, array $params = array())
+    {
+        // 解析模板格式
+        $parts = explode('.', $template, 2);
+        if (count($parts) !== 2) {
+            throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
+        }
+        
+        $groupName = $parts[0];
+        $keyName = $parts[1];
+        
+        // 委托给现有的 createKey 方法
+        return $this->createKey($groupName, $keyName, $params);
+    }
+
+    /**
      * 批量获取缓存键对象
      * 
      * @param string $template 键模板，格式：'group.key'
@@ -192,7 +215,7 @@ class KeyManager
             return array();
         }
         
-        // 解析模板
+        // 解析模板（复用模板解析逻辑）
         $parts = explode('.', $template, 2);
         if (count($parts) !== 2) {
             throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
@@ -213,13 +236,36 @@ class KeyManager
                 $keyString = (string)$cacheKey;
                 $result[$keyString] = $cacheKey;
             } catch (CacheException $e) {
-                // 如果单个键创建失败，可以选择跳过或抛出异常
-                // 这里选择抛出异常以保持一致性
+                // 如果单个键创建失败，抛出异常以保持一致性
                 throw $e;
             }
         }
         
         return $result;
+    }
+
+    /**
+     * 创建缓存键集合
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表
+     * @return CacheKeyCollection 缓存键集合对象
+     * @throws CacheException
+     */
+    public function createKeyCollection($template, array $paramsList)
+    {
+        if (empty($paramsList)) {
+            return new CacheKeyCollection(array());
+        }
+
+        $cacheKeys = array();
+        foreach ($paramsList as $params) {
+            if (is_array($params)) {
+                $cacheKeys[] = $this->createKeyFromTemplate($template, $params);
+            }
+        }
+
+        return new CacheKeyCollection($cacheKeys);
     }
 
     /**

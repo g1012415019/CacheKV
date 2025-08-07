@@ -16,13 +16,8 @@ if (!function_exists('cache_kv_get')) {
      */
     function cache_kv_get($template, array $params = array(), $callback = null, $ttl = null)
     {
-        $cache = CacheKVFactory::getInstance();
-        
-        // 创建 CacheKey 对象
-        $cacheKey = cache_kv_make_key($template, $params);
-        
-        // 使用 CacheKey 对象调用 get 方法
-        return $cache->get($cacheKey, $callback, $ttl);
+        // 委托给 CacheKV 处理，不包含业务逻辑
+        return CacheKVFactory::getInstance()->getByTemplate($template, $params, $callback, $ttl);
     }
 }
 
@@ -37,19 +32,8 @@ if (!function_exists('cache_kv_get_multiple')) {
      */
     function cache_kv_get_multiple($template, array $paramsList, $callback = null)
     {
-        if (empty($paramsList)) {
-            return array();
-        }
-
-        $cache = CacheKVFactory::getInstance();
-        
-        // 使用批量键生成函数，获取 CacheKeyCollection
-        $keyCollection = cache_kv_make_keys($template, $paramsList);
-        
-        // 获取 CacheKey 数组
-        $cacheKeys = $keyCollection->getKeys();
-
-        return $cache->getMultiple($cacheKeys, $callback);
+        // 委托给 CacheKV 处理，不包含业务逻辑
+        return CacheKVFactory::getInstance()->getMultipleByTemplate($template, $paramsList, $callback);
     }
 }
 
@@ -98,17 +82,8 @@ if (!function_exists('cache_kv_make_key')) {
      */
     function cache_kv_make_key($template, array $params = array())
     {
-        // 简单分割模板
-        $parts = explode('.', $template, 2);
-        if (count($parts) !== 2) {
-            throw new \InvalidArgumentException("Template must be in format 'group.key', got: '{$template}'");
-        }
-        
-        $groupName = $parts[0];
-        $keyName = $parts[1];
-        
-        // 委托给KeyManager处理，让它负责验证和创建
-        return KeyManager::getInstance()->createKey($groupName, $keyName, $params);
+        // 委托给 KeyManager 处理，不包含业务逻辑
+        return \Asfop\CacheKV\Key\KeyManager::getInstance()->createKeyFromTemplate($template, $params);
     }
 }
 
@@ -122,18 +97,8 @@ if (!function_exists('cache_kv_make_keys')) {
      */
     function cache_kv_make_keys($template, array $paramsList)
     {
-        if (empty($paramsList)) {
-            return new \Asfop\CacheKV\Key\CacheKeyCollection(array());
-        }
-
-        $cacheKeys = array();
-        foreach ($paramsList as $params) {
-            if (is_array($params)) {
-                $cacheKeys[] = cache_kv_make_key($template, $params);
-            }
-        }
-
-        return new \Asfop\CacheKV\Key\CacheKeyCollection($cacheKeys);
+        // 委托给 KeyManager 处理，不包含业务逻辑
+        return \Asfop\CacheKV\Key\KeyManager::getInstance()->createKeyCollection($template, $paramsList);
     }
 }
 
