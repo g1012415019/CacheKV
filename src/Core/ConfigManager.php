@@ -73,19 +73,7 @@ class ConfigManager
 
 
     /**
-     * 获取全局缓存配置
-     * 
-     * @return array 返回数组格式以保持向后兼容
-     * @throws CacheException 当配置未加载时
-     */
-    public static function getGlobalCacheConfig()
-    {
-        self::ensureConfigLoaded();
-        return self::$config->getCache()->toArray();
-    }
-
-    /**
-     * 获取全局缓存配置实体对象
+     * 获取全局缓存配置对象
      * 
      * @return CacheConfig
      * @throws CacheException 当配置未加载时
@@ -99,122 +87,13 @@ class ConfigManager
     /**
      * 获取 KeyManager 配置
      * 
-     * @return array 返回数组格式以保持向后兼容
+     * @return array
      * @throws CacheException 当配置未加载时
      */
     public static function getKeyManagerConfig()
     {
         self::ensureConfigLoaded();
         return self::$config->getKeyManager()->toArray();
-    }
-
-    /**
-     * 获取指定组的缓存配置（继承全局配置）
-     * 
-     * @param string $groupName 组名
-     * @return array
-     * @throws CacheException 当配置未加载或组不存在时
-     */
-    public static function getGroupCacheConfig($groupName)
-    {
-        self::ensureConfigLoaded();
-        
-        $keyManagerConfig = self::$config->getKeyManager();
-        $groupConfig = $keyManagerConfig->getGroup($groupName);
-        
-        if ($groupConfig === null) {
-            throw new CacheException("Group '{$groupName}' not found in configuration");
-        }
-        
-        // 获取全局缓存配置
-        $globalCacheConfig = self::$config->getCache()->toArray();
-        
-        // 获取组级缓存配置
-        $groupCacheConfig = $groupConfig->getCacheConfig();
-        if ($groupCacheConfig === null) {
-            $groupCacheConfig = array();
-        }
-        
-        // 组配置覆盖全局配置
-        return array_merge($globalCacheConfig, $groupCacheConfig);
-    }
-
-    /**
-     * 获取指定键的缓存配置（继承组配置）
-     * 
-     * @param string $groupName 组名
-     * @param string $keyName 键名
-     * @return array|null 返回缓存配置，键不存在时返回null
-     * @throws CacheException 当配置未加载或组不存在时
-     */
-    public static function getKeyCacheConfig($groupName, $keyName)
-    {
-        self::ensureConfigLoaded();
-        
-        $keyManagerConfig = self::$config->getKeyManager();
-        $groupConfig = $keyManagerConfig->getGroup($groupName);
-        
-        if ($groupConfig === null) {
-            throw new CacheException("Group '{$groupName}' not found in configuration");
-        }
-        
-        // 获取组级缓存配置作为基础
-        $groupCacheConfig = self::getGroupCacheConfig($groupName);
-        
-        // 检查键是否存在
-        if ($groupConfig->hasKey($keyName)) {
-            $keyConfig = $groupConfig->getKey($keyName);
-            
-            // 如果键有明确的缓存配置，使用键级配置
-            if ($keyConfig->hasCacheConfig()) {
-                $keyCacheConfig = $keyConfig->getCacheConfig();
-                
-                if ($keyCacheConfig !== null) {
-                    return $keyCacheConfig->toArray();
-                }
-            }
-            
-            // 键没有明确的缓存配置，返回继承的组级配置
-            // 这样其他地方可以使用这些配置，但CacheKV不会对这些键应用缓存逻辑
-            return $groupCacheConfig;
-        }
-        
-        // 键不存在，返回null
-        return null;
-    }
-
-    /**
-     * 检查键是否有缓存配置
-     * 
-     * @param string $groupName 组名
-     * @param string $keyName 键名
-     * @return bool
-     * @throws CacheException 当配置未加载时
-     */
-    public static function hasKeyCache($groupName, $keyName)
-    {
-        self::ensureConfigLoaded();
-        
-        $keyManagerConfig = self::$config->getKeyManager();
-        $groupConfig = $keyManagerConfig->getGroup($groupName);
-        
-        if ($groupConfig === null) {
-            return false;
-        }
-        
-        return $groupConfig->hasKeyCache($keyName);
-    }
-
-    /**
-     * 获取完整的配置实体对象
-     * 
-     * @return CacheKVConfig
-     * @throws CacheException 当配置未加载时
-     */
-    public static function getConfigObject()
-    {
-        self::ensureConfigLoaded();
-        return self::$config;
     }
 
     /**

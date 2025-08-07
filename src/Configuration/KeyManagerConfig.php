@@ -122,7 +122,7 @@ class KeyManagerConfig
     }
 
     /**
-     * 转换为数组格式（向后兼容）
+     * 转换为数组格式
      * 
      * @return array
      */

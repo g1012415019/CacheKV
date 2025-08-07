@@ -30,7 +30,7 @@ class KeyManager
     private static $instance = null;
     
     /**
-     * 全局配置数组（向后兼容）
+     * 全局配置数组
      * 
      * @var array|null
      */
