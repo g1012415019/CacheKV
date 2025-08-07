@@ -228,50 +228,96 @@ $userProfile = cache_kv_get('user.profile', ['id' => 123], function() {
 
 ### 多个缓存获取
 
-#### 批量获取（推荐）
+#### 批量获取相同模板（推荐）
 
 ```php
-// 定义要获取的缓存
-$templates = [
-    ['template' => 'user.profile', 'params' => ['id' => 1]],
-    ['template' => 'user.profile', 'params' => ['id' => 2]],
-    ['template' => 'user.profile', 'params' => ['id' => 3]],
-    ['template' => 'user.settings', 'params' => ['id' => 1]],
-];
-
-// 批量获取，自动处理未命中的键
-$results = cache_kv_get_multiple($templates, function($missedKeys) {
+// 批量获取多个用户资料
+$users = cache_kv_get_multiple('user.profile', [
+    ['id' => 1],
+    ['id' => 2], 
+    ['id' => 3]
+], function($missedKeys) {
     $data = [];
     
     foreach ($missedKeys as $cacheKey) {
         $keyString = (string)$cacheKey;
+        $params = $cacheKey->getParams();
+        $userId = $params['id'];
         
-        // 根据键类型获取数据
-        if (strpos($keyString, 'profile') !== false) {
-            // 提取用户ID
-            preg_match('/profile:(\d+)/', $keyString, $matches);
-            $userId = $matches[1];
-            $data[$keyString] = getUserFromDatabase($userId);
-            
-        } elseif (strpos($keyString, 'settings') !== false) {
-            // 提取用户ID
-            preg_match('/settings:(\d+)/', $keyString, $matches);
-            $userId = $matches[1];
-            $data[$keyString] = getUserSettingsFromDatabase($userId);
-        }
+        // 从数据库获取用户数据
+        $data[$keyString] = getUserFromDatabase($userId);
+    }
+    
+    return $data; // 必须返回关联数组：['key_string' => 'data']
+});
+
+// 处理结果
+foreach ($users as $keyString => $userData) {
+    echo "用户数据: " . json_encode($userData) . "\n";
+}
+```
+
+#### 批量获取不同参数
+
+```php
+// 获取不同尺寸的用户头像
+$avatars = cache_kv_get_multiple('user.avatar', [
+    ['id' => 123, 'size' => 'small'],
+    ['id' => 123, 'size' => 'medium'],
+    ['id' => 123, 'size' => 'large']
+], function($missedKeys) {
+    $data = [];
+    
+    foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
+        $params = $cacheKey->getParams();
+        
+        // 生成对应尺寸的头像URL
+        $data[$keyString] = generateAvatarUrl($params['id'], $params['size']);
     }
     
     return $data;
 });
-
-// 处理结果
-foreach ($results as $keyString => $data) {
-    echo "Key: {$keyString}\n";
-    echo "Data: " . json_encode($data) . "\n\n";
-}
 ```
 
-#### 性能优势
+#### 批量键生成和管理
+
+```php
+// 生成批量缓存键对象
+$keyCollection = cache_kv_make_keys('user.profile', [
+    ['id' => 1],
+    ['id' => 2],
+    ['id' => 3]
+]);
+
+echo "生成了 {$keyCollection->count()} 个缓存键\n";
+
+// 获取键字符串数组（用于Redis操作）
+$keyStrings = $keyCollection->toStrings();
+print_r($keyStrings);
+/*
+输出：
+Array
+(
+    [0] => myapp:user:v1:profile:1
+    [1] => myapp:user:v1:profile:2
+    [2] => myapp:user:v1:profile:3
+)
+*/
+
+// 遍历键对象
+foreach ($keyCollection->getKeys() as $cacheKey) {
+    echo "键: " . (string)$cacheKey . "\n";
+    echo "参数: " . json_encode($cacheKey->getParams()) . "\n";
+}
+
+// 直接用于Redis操作
+$redis = new Redis();
+$redis->connect('127.0.0.1', 6379);
+$redis->del($keyStrings); // 批量删除
+```
+
+#### 性能优势对比
 
 ```php
 // ❌ 低效方式：多次单独调用
@@ -281,25 +327,69 @@ for ($i = 1; $i <= 100; $i++) {
         return getUserFromDatabase($i);
     });
 }
-// 结果：可能产生100次Redis调用
+// 结果：可能产生100次Redis调用 + 100次数据库查询
 
 // ✅ 高效方式：批量调用
-$templates = [];
+$paramsList = [];
 for ($i = 1; $i <= 100; $i++) {
-    $templates[] = ['template' => 'user.profile', 'params' => ['id' => $i]];
+    $paramsList[] = ['id' => $i];
 }
 
-$users = cache_kv_get_multiple($templates, function($missedKeys) {
+$users = cache_kv_get_multiple('user.profile', $paramsList, function($missedKeys) {
     // 批量从数据库获取未命中的用户
     $userIds = [];
+    $data = [];
+    
     foreach ($missedKeys as $cacheKey) {
-        preg_match('/profile:(\d+)/', (string)$cacheKey, $matches);
-        $userIds[] = $matches[1];
+        $params = $cacheKey->getParams();
+        $userIds[] = $params['id'];
     }
     
-    return getUsersFromDatabase($userIds); // 一次数据库查询
+    // 一次数据库查询获取所有用户
+    $users = getUsersFromDatabase($userIds);
+    
+    // 按键字符串组织返回数据
+    foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
+        $params = $cacheKey->getParams();
+        $userId = $params['id'];
+        $data[$keyString] = $users[$userId] ?? null;
+    }
+    
+    return $data;
 });
-// 结果：最多2次Redis调用（1次批量获取 + 1次批量设置）
+// 结果：最多2次Redis调用 + 1次数据库查询
+```
+
+#### 混合数据类型处理
+
+```php
+// 处理不同类型的缓存数据
+$results = cache_kv_get_multiple('user.profile', [
+    ['id' => 1],
+    ['id' => 2],
+    ['id' => 999] // 不存在的用户
+], function($missedKeys) {
+    $data = [];
+    
+    foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
+        $params = $cacheKey->getParams();
+        $userId = $params['id'];
+        
+        $user = getUserFromDatabase($userId);
+        
+        // 处理不存在的用户（缓存null值避免缓存穿透）
+        $data[$keyString] = $user ?: null;
+    }
+    
+    return $data;
+});
+
+// 处理结果，过滤null值
+$validUsers = array_filter($results, function($user) {
+    return $user !== null;
+});
 ```
 
 ### 实际应用场景
@@ -308,67 +398,132 @@ $users = cache_kv_get_multiple($templates, function($missedKeys) {
 
 ```php
 function getUserProfilePage($userId) {
-    // 并行获取用户相关的多个缓存
-    $templates = [
-        ['template' => 'user.profile', 'params' => ['id' => $userId]],
-        ['template' => 'user.settings', 'params' => ['id' => $userId]],
-        ['template' => 'user.avatar', 'params' => ['id' => $userId, 'size' => 'large']],
-    ];
+    // 获取用户基础资料
+    $userProfile = cache_kv_get('user.profile', ['id' => $userId], function() use ($userId) {
+        return getUserProfile($userId);
+    });
     
-    $results = cache_kv_get_multiple($templates, function($missedKeys) {
-        $data = [];
-        foreach ($missedKeys as $cacheKey) {
-            $keyString = (string)$cacheKey;
-            
-            if (strpos($keyString, 'profile') !== false) {
-                preg_match('/profile:(\d+)/', $keyString, $matches);
-                $data[$keyString] = getUserProfile($matches[1]);
-                
-            } elseif (strpos($keyString, 'settings') !== false) {
-                preg_match('/settings:(\d+)/', $keyString, $matches);
-                $data[$keyString] = getUserSettings($matches[1]);
-                
-            } elseif (strpos($keyString, 'avatar') !== false) {
-                preg_match('/avatar:(\d+):(\w+)/', $keyString, $matches);
-                $data[$keyString] = generateAvatarUrl($matches[1], $matches[2]);
-            }
-        }
-        return $data;
+    // 获取用户设置
+    $userSettings = cache_kv_get('user.settings', ['id' => $userId], function() use ($userId) {
+        return getUserSettings($userId);
+    });
+    
+    // 获取用户头像
+    $userAvatar = cache_kv_get('user.avatar', ['id' => $userId, 'size' => 'large'], function() use ($userId) {
+        return generateAvatarUrl($userId, 'large');
     });
     
     return [
-        'profile' => $results['myapp:user:v1:profile:' . $userId] ?? null,
-        'settings' => $results['myapp:user:v1:settings:' . $userId] ?? null,
-        'avatar' => $results['myapp:user:v1:avatar:' . $userId . ':large'] ?? null,
+        'profile' => $userProfile,
+        'settings' => $userSettings,
+        'avatar' => $userAvatar,
     ];
+}
+```
+
+#### 商品列表页面
+
+```php
+function getProductList($productIds) {
+    // 批量获取商品信息
+    $paramsList = [];
+    foreach ($productIds as $productId) {
+        $paramsList[] = ['id' => $productId];
+    }
+    
+    $products = cache_kv_get_multiple('product.info', $paramsList, function($missedKeys) {
+        $data = [];
+        $productIds = [];
+        
+        // 收集未命中的商品ID
+        foreach ($missedKeys as $cacheKey) {
+            $params = $cacheKey->getParams();
+            $productIds[] = $params['id'];
+        }
+        
+        // 批量从数据库获取商品信息
+        $productsFromDB = getProductsFromDatabase($productIds);
+        
+        // 按键字符串组织返回数据
+        foreach ($missedKeys as $cacheKey) {
+            $keyString = (string)$cacheKey;
+            $params = $cacheKey->getParams();
+            $productId = $params['id'];
+            $data[$keyString] = $productsFromDB[$productId] ?? null;
+        }
+        
+        return $data;
+    });
+    
+    return array_values(array_filter($products)); // 过滤null值并重新索引
 }
 ```
 
 #### API 响应缓存
 
 ```php
-function getApiData($endpoints) {
-    $templates = [];
-    foreach ($endpoints as $endpoint => $params) {
-        $templates[] = [
-            'template' => 'api.response',
-            'params' => [
-                'endpoint' => $endpoint,
-                'hash' => md5(json_encode($params))
-            ]
+function getCachedApiResponse($endpoint, $params = []) {
+    $cacheKey = [
+        'endpoint' => $endpoint,
+        'hash' => md5(json_encode($params))
+    ];
+    
+    return cache_kv_get('api.response', $cacheKey, function() use ($endpoint, $params) {
+        return callExternalAPI($endpoint, $params);
+    }, 300); // API响应缓存5分钟
+}
+
+// 批量API调用
+function getBatchApiResponses($requests) {
+    $paramsList = [];
+    foreach ($requests as $request) {
+        $paramsList[] = [
+            'endpoint' => $request['endpoint'],
+            'hash' => md5(json_encode($request['params'] ?? []))
         ];
     }
     
-    return cache_kv_get_multiple($templates, function($missedKeys) {
+    return cache_kv_get_multiple('api.response', $paramsList, function($missedKeys) use ($requests) {
         $data = [];
+        
         foreach ($missedKeys as $cacheKey) {
-            // 从键中提取endpoint信息并调用API
             $keyString = (string)$cacheKey;
-            // ... 解析并调用对应的API
-            $data[$keyString] = callExternalAPI($endpoint, $params);
+            $params = $cacheKey->getParams();
+            
+            // 找到对应的请求
+            foreach ($requests as $request) {
+                $requestHash = md5(json_encode($request['params'] ?? []));
+                if ($params['hash'] === $requestHash && $params['endpoint'] === $request['endpoint']) {
+                    $data[$keyString] = callExternalAPI($request['endpoint'], $request['params'] ?? []);
+                    break;
+                }
+            }
         }
+        
         return $data;
     });
+}
+```
+
+#### 统计数据缓存
+
+```php
+function getDashboardStats($userId, $dateRange) {
+    // 生成统计数据的缓存键
+    $statsKey = [
+        'user_id' => $userId,
+        'date_range' => $dateRange,
+        'version' => 'v1'
+    ];
+    
+    return cache_kv_get('stats.dashboard', $statsKey, function() use ($userId, $dateRange) {
+        return [
+            'total_orders' => getOrderCount($userId, $dateRange),
+            'total_revenue' => getRevenue($userId, $dateRange),
+            'top_products' => getTopProducts($userId, $dateRange, 10),
+            'generated_at' => time()
+        ];
+    }, 1800); // 统计数据缓存30分钟
 }
 ```
 
