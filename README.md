@@ -57,14 +57,13 @@ $user = cache_kv_get('user.profile', ['id' => 123], function() {
 $users = cache_kv_get_multiple('user.profile', [
     ['id' => 1], ['id' => 2], ['id' => 3]
 ], function($missedKeys) {
-    // $missedKeys 是 CacheKey 对象数组
     $data = [];
     foreach ($missedKeys as $cacheKey) {
+        $keyString = (string)$cacheKey;
         $params = $cacheKey->getParams();
-        $userId = $params['id'];
-        $data[] = getUserFromDatabase($userId);
+        $data[$keyString] = getUserFromDatabase($params['id']);
     }
-    return $data; // 返回索引数组，按顺序对应
+    return $data; // 返回关联数组
 });
 ```
 
@@ -88,41 +87,9 @@ $hotKeys = cache_kv_get_hot_keys(10);
 // ['user:profile:123' => 45, 'user:profile:456' => 32, ...]
 ```
 
-## 🔧 配置示例
-
-```php
-// config/cache_kv.php
-return array(
-    'cache' => array(
-        'ttl' => 3600,                          // 默认缓存时间
-        'enable_stats' => true,                 // 启用统计
-        'stats_prefix' => 'cachekv:stats:',     // 统计数据Redis键前缀
-        'stats_ttl' => 604800,                  // 统计数据TTL（7天）
-        'hot_key_auto_renewal' => true,         // 启用热点键自动续期
-        'hot_key_threshold' => 100,             // 热点键阈值
-    ),
-    
-    'key_manager' => array(
-        'app_prefix' => 'myapp',                // 应用前缀
-        'groups' => array(
-            'user' => array(
-                'prefix' => 'user',
-                'version' => 'v1',
-                'keys' => array(
-                    'kv' => array(
-                        'profile' => array('template' => 'profile:{id}'),
-                        'settings' => array('template' => 'settings:{id}'),
-                    ),
-                ),
-            ),
-        ),
-    ),
-);
-```
-
 ## 📚 文档
 
-- **[完整文档](docs/README.md)** - 详细的配置和架构说明
+- **[完整文档](docs/README.md)** - 详细的配置、架构和使用说明 ⭐
 - **[快速开始](docs/QUICK_START.md)** - 5分钟快速上手指南
 - **[配置参考](docs/CONFIG.md)** - 所有配置选项的详细说明
 - **[统计功能](docs/STATS.md)** - 性能监控和热点键管理
@@ -148,3 +115,5 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ---
 
 **开始您的高效缓存之旅！** 🚀
+
+> 💡 **提示：** 查看 [完整文档](docs/README.md) 了解详细的配置和高级用法
