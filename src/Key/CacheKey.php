@@ -138,13 +138,13 @@ class CacheKey
     }
 
     /**
-     * 检查是否为KV类型的键
+     * 检查是否有缓存配置
      * 
      * @return bool
      */
-    public function isKvKey()
+    public function hasCacheConfig()
     {
-        return $this->keyConfig !== null && $this->keyConfig->isKvType();
+        return $this->keyConfig !== null && $this->keyConfig->hasCacheConfig();
     }
 
     /**
@@ -180,7 +180,7 @@ class CacheKey
             'key_name' => $this->keyName,
             'params' => $this->params,
             'full_key' => $this->__toString(),
-            'is_kv_key' => $this->isKvKey(),
+            'has_cache_config' => $this->hasCacheConfig(),
             'stats_enabled' => $this->isStatsEnabled()
         );
         

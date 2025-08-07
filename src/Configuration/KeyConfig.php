@@ -3,9 +3,9 @@
 namespace Asfop\CacheKV\Configuration;
 
 /**
- * 键配置类 - 重新设计
+ * 键配置类 - 简化版
  * 
- * 持有 CacheConfig 对象
+ * 移除类型概念，通过是否有缓存配置来判断行为
  * 兼容 PHP 7.0
  */
 class KeyConfig
@@ -23,13 +23,6 @@ class KeyConfig
      * @var string
      */
     private $template;
-    
-    /**
-     * 键类型 (kv|other)
-     * 
-     * @var string
-     */
-    private $type;
     
     /**
      * 键描述
@@ -50,15 +43,13 @@ class KeyConfig
      * 
      * @param string $name 键名称
      * @param string $template 键模板
-     * @param string $type 键类型
      * @param string|null $description 键描述
      * @param CacheConfig|null $cacheConfig 缓存配置对象
      */
-    public function __construct($name, $template, $type, $description = null, $cacheConfig = null)
+    public function __construct($name, $template, $description = null, $cacheConfig = null)
     {
         $this->name = $name;
         $this->template = $template;
-        $this->type = $type;
         $this->description = $description;
         $this->cacheConfig = $cacheConfig;
     }
@@ -84,16 +75,6 @@ class KeyConfig
     }
 
     /**
-     * 获取键类型
-     * 
-     * @return string
-     */
-    public function getType()
-    {
-        return $this->type;
-    }
-
-    /**
      * 获取键描述
      * 
      * @return string|null
@@ -114,16 +95,6 @@ class KeyConfig
     }
 
     /**
-     * 检查是否为KV类型
-     * 
-     * @return bool
-     */
-    public function isKvType()
-    {
-        return $this->type === 'kv';
-    }
-
-    /**
      * 检查是否有缓存配置
      * 
      * @return bool
@@ -138,13 +109,12 @@ class KeyConfig
      * 
      * @param string $keyName 键名称
      * @param array $config 配置数组
-     * @param string $type 键类型 (kv|other)
      * @param array|null $globalCacheConfig 全局缓存配置
      * @param array|null $groupCacheConfig 组级缓存配置
      * @return KeyConfig
      * @throws \InvalidArgumentException 当配置格式不正确时
      */
-    public static function fromArray($keyName, array $config, $type = 'kv', $globalCacheConfig = null, $groupCacheConfig = null)
+    public static function fromArray($keyName, array $config, $globalCacheConfig = null, $groupCacheConfig = null)
     {
         // 验证必要的配置项
         if (!isset($config['template'])) {
@@ -153,35 +123,18 @@ class KeyConfig
         
         $template = $config['template'];
         $description = isset($config['description']) ? $config['description'] : null;
-        $cacheConfig = null;
         
-        // 只有KV类型的键才处理缓存配置
-        if ($type === 'kv') {
-            // 按优先级合并配置：全局配置 -> 组级配置 -> 键级配置
-            $mergedCacheConfig = array();
-            
-            // 1. 先应用全局配置
-            if ($globalCacheConfig !== null && is_array($globalCacheConfig)) {
-                $mergedCacheConfig = $globalCacheConfig;
-            }
-            
-            // 2. 再应用组级配置（覆盖全局配置）
-            if ($groupCacheConfig !== null && is_array($groupCacheConfig)) {
-                $mergedCacheConfig = array_merge($mergedCacheConfig, $groupCacheConfig);
-            }
-            
-            // 3. 最后应用键级配置（覆盖组级配置）
-            if (isset($config['cache']) && is_array($config['cache'])) {
-                $mergedCacheConfig = array_merge($mergedCacheConfig, $config['cache']);
-            }
-            
-            // 如果有任何配置，则创建 CacheConfig 对象
-            if (!empty($mergedCacheConfig)) {
-                $cacheConfig = CacheConfig::fromArray($mergedCacheConfig);
-            }
+        // 创建缓存配置对象
+        $cacheConfig = null;
+        if (isset($config['cache']) && is_array($config['cache'])) {
+            // 有键级缓存配置
+            $cacheConfig = CacheConfig::fromArray($config['cache'], $globalCacheConfig, $groupCacheConfig);
+        } elseif ($groupCacheConfig !== null || $globalCacheConfig !== null) {
+            // 没有键级配置，但有组级或全局配置，创建继承的配置
+            $cacheConfig = CacheConfig::fromArray(array(), $globalCacheConfig, $groupCacheConfig);
         }
         
-        return new self($keyName, $template, $type, $description, $cacheConfig);
+        return new self($keyName, $template, $description, $cacheConfig);
     }
 
     /**
@@ -194,7 +147,6 @@ class KeyConfig
         $result = array(
             'name' => $this->name,
             'template' => $this->template,
-            'type' => $this->type,
             'description' => $this->description
         );
         

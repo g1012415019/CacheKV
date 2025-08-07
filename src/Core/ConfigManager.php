@@ -197,7 +197,7 @@ class ConfigManager
      * 
      * @param string $groupName 组名
      * @param string $keyName 键名
-     * @return array|null 如果是非KV类型的键，返回null
+     * @return array|null 如果键没有缓存配置，返回null
      * @throws CacheException 当配置未加载或组不存在时
      */
     public static function getKeyCacheConfig($groupName, $keyName)
@@ -214,22 +214,20 @@ class ConfigManager
         // 获取组级缓存配置作为基础
         $groupCacheConfig = self::getGroupCacheConfig($groupName);
         
-        // 检查是否为KV类型的键
-        if ($groupConfig->hasKvKey($keyName)) {
-            $keyConfig = $groupConfig->getKvKey($keyName);
-            $keyCacheConfig = $keyConfig->getCacheConfig();
+        // 检查键是否存在
+        if ($groupConfig->hasKey($keyName)) {
+            $keyConfig = $groupConfig->getKey($keyName);
             
-            if ($keyCacheConfig !== null && !empty($keyCacheConfig)) {
-                // 键配置覆盖组配置
-                return array_merge($groupCacheConfig, $keyCacheConfig);
+            // 检查键是否有缓存配置
+            if ($keyConfig->hasCacheConfig()) {
+                $keyCacheConfig = $keyConfig->getCacheConfig();
+                
+                if ($keyCacheConfig !== null) {
+                    return $keyCacheConfig->toArray();
+                }
             }
             
             return $groupCacheConfig;
-        }
-        
-        // 如果是其他类型的键，返回null（不应用缓存配置）
-        if ($groupConfig->hasOtherKey($keyName)) {
-            return null;
         }
         
         // 键不存在，返回组配置
@@ -237,14 +235,14 @@ class ConfigManager
     }
 
     /**
-     * 检查键是否为KV类型
+     * 检查键是否有缓存配置
      * 
      * @param string $groupName 组名
      * @param string $keyName 键名
      * @return bool
      * @throws CacheException 当配置未加载时
      */
-    public static function isKvKey($groupName, $keyName)
+    public static function hasKeyCache($groupName, $keyName)
     {
         self::ensureConfigLoaded();
         
@@ -255,7 +253,7 @@ class ConfigManager
             return false;
         }
         
-        return $groupConfig->isKvKey($keyName);
+        return $groupConfig->hasKeyCache($keyName);
     }
 
     /**

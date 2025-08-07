@@ -196,15 +196,11 @@ class GroupConfig
         
         $keys = array();
         
-        // 解析键配置
+        // 解析键配置 - 简化的结构
         if (isset($config['keys']) && is_array($config['keys'])) {
             foreach ($config['keys'] as $keyName => $keyConfig) {
-                // 判断键是否有缓存配置来决定类型
-                $hasCache = isset($keyConfig['cache']) && is_array($keyConfig['cache']);
-                $keyType = $hasCache ? 'kv' : 'other';
-                
                 // 传递全局配置和组级配置给 KeyConfig
-                $keys[$keyName] = KeyConfig::fromArray($keyName, $keyConfig, $keyType, $globalCacheConfig, $cacheConfig);
+                $keys[$keyName] = KeyConfig::fromArray($keyName, $keyConfig, $globalCacheConfig, $cacheConfig);
             }
         }
         
@@ -239,60 +235,5 @@ class GroupConfig
         
         return $result;
     }
-
-    // ==================== 向后兼容方法 ====================
-    
-    /**
-     * 获取KV类型的键配置（向后兼容）
-     * 
-     * @return array
-     */
-    public function getKvKeys()
-    {
-        $kvKeys = array();
-        foreach ($this->keys as $keyName => $keyConfig) {
-            if ($keyConfig->isKvType()) {
-                $kvKeys[$keyName] = $keyConfig;
-            }
-        }
-        return $kvKeys;
-    }
-
-    /**
-     * 获取其他类型的键配置（向后兼容）
-     * 
-     * @return array
-     */
-    public function getOtherKeys()
-    {
-        $otherKeys = array();
-        foreach ($this->keys as $keyName => $keyConfig) {
-            if (!$keyConfig->isKvType()) {
-                $otherKeys[$keyName] = $keyConfig;
-            }
-        }
-        return $otherKeys;
-    }
-
-    /**
-     * 检查KV键是否存在（向后兼容）
-     * 
-     * @param string $keyName 键名称
-     * @return bool
-     */
-    public function hasKvKey($keyName)
-    {
-        return isset($this->keys[$keyName]) && $this->keys[$keyName]->isKvType();
-    }
-
-    /**
-     * 检查键是否为KV类型（向后兼容）
-     * 
-     * @param string $keyName 键名称
-     * @return bool
-     */
-    public function isKvKey($keyName)
-    {
-        return $this->hasKvKey($keyName);
-    }
+}
 }
