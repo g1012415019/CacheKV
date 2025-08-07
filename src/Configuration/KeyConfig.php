@@ -128,7 +128,12 @@ class KeyConfig
         $cacheConfig = null;
         if (isset($config['cache']) && is_array($config['cache'])) {
             // 只有键明确有缓存配置时才创建 CacheConfig 对象
-            $cacheConfig = CacheConfig::fromArray($config['cache'], $globalCacheConfig, $groupCacheConfig);
+            // 使用 merge 方法进行配置继承
+            $globalConfig = $globalCacheConfig ?: array();
+            $groupConfig = $groupCacheConfig ?: array();
+            $keyConfig = $config['cache'];
+            
+            $cacheConfig = CacheConfig::merge($globalConfig, $groupConfig, $keyConfig);
         }
         // 注意：如果键没有明确的cache配置，我们不创建CacheConfig对象
         // 这样 hasCacheConfig() 会返回 false，表示该键不应用缓存逻辑
