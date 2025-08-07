@@ -603,15 +603,13 @@ class CacheKV
         
         $groupConfig = $keyManagerConfig['groups'][$groupName];
         
-        // 检查键是否存在
-        if (!isset($groupConfig['keys']['kv'][$keyName]) && !isset($groupConfig['keys']['other'][$keyName])) {
+        // 检查键是否存在（简化后的结构）
+        if (!isset($groupConfig['keys'][$keyName])) {
             throw new \InvalidArgumentException("Key '{$keyName}' not found in group '{$groupName}'");
         }
         
         // 获取键配置
-        $keyConfig = isset($groupConfig['keys']['kv'][$keyName]) 
-            ? $groupConfig['keys']['kv'][$keyName] 
-            : $groupConfig['keys']['other'][$keyName];
+        $keyConfig = $groupConfig['keys'][$keyName];
         
         // 构建前缀
         $appPrefix = isset($keyManagerConfig['app_prefix']) ? $keyManagerConfig['app_prefix'] : 'app';

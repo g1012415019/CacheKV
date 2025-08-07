@@ -64,17 +64,22 @@ return array(
         'hot_key_threshold' => 50,
     ),
     
+    // 键定义 - 统一结构，不区分类型
     'keys' => array(
-        'kv' => array(
-            'profile' => array(
-                'template' => 'profile:{id}',
-                'description' => '用户资料',
-                'cache' => array('ttl' => 10800)
-            ),
-            'settings' => array(
-                'template' => 'settings:{id}',
-                'description' => '用户设置'
-            ),
+        'profile' => array(
+            'template' => 'profile:{id}',
+            'description' => '用户资料',
+            'cache' => array('ttl' => 10800)    // 有cache配置的键会应用缓存逻辑
+        ),
+        'settings' => array(
+            'template' => 'settings:{id}',
+            'description' => '用户设置'
+            // 继承组级缓存配置
+        ),
+        'session' => array(
+            'template' => 'session:{token}',
+            'description' => '用户会话标识'
+            // 没有cache配置，仅用于键生成
         ),
     ),
 );
@@ -138,16 +143,19 @@ return array(
         'ttl' => 7200,                  // 覆盖全局TTL
     ),
     
-    // 键定义
+    // 键定义 - 统一结构
     'keys' => array(
-        'kv' => array(                  // KV类型的键
-            'key_name' => array(
-                'template' => 'template:{param}',
-                'description' => '键描述',
-                'cache' => array(       // 键级配置（可选）
-                    'ttl' => 10800,
-                )
-            ),
+        'key_name' => array(
+            'template' => 'template:{param}',
+            'description' => '键描述',
+            'cache' => array(           // 键级配置（可选）
+                'ttl' => 10800,         // 有cache配置的键会应用缓存逻辑
+            )
+        ),
+        'other_key' => array(
+            'template' => 'other:{param}',
+            'description' => '其他键',
+            // 没有cache配置，仅用于键生成
         ),
     ),
 );
@@ -164,10 +172,8 @@ return array(
     'user' => array(
         'cache' => array('ttl' => 7200),            // 组级：2小时
         'keys' => array(
-            'kv' => array(
-                'profile' => array(
-                    'cache' => array('ttl' => 10800) // 键级：3小时（最终值）
-                )
+            'profile' => array(
+                'cache' => array('ttl' => 10800)   // 键级：3小时（最终值）
             )
         )
     )
@@ -185,10 +191,8 @@ return array(
     'prefix' => 'user',
     'version' => 'v1',
     'keys' => array(
-        'kv' => array(
-            'profile' => array('template' => 'profile:{id}'),
-            'settings' => array('template' => 'settings:{id}'),
-        ),
+        'profile' => array('template' => 'profile:{id}'),
+        'settings' => array('template' => 'settings:{id}'),
     ),
 );
 ```
@@ -200,10 +204,8 @@ return array(
     'prefix' => 'goods',
     'version' => 'v1',
     'keys' => array(
-        'kv' => array(
-            'info' => array('template' => 'info:{id}'),
-            'price' => array('template' => 'price:{id}'),
-        ),
+        'info' => array('template' => 'info:{id}'),
+        'price' => array('template' => 'price:{id}'),
     ),
 );
 ```

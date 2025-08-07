@@ -5,7 +5,7 @@ namespace Asfop\CacheKV\Configuration;
 /**
  * 分组配置类 - 简化版
  * 
- * 只保留核心功能，删除重复的便捷方法
+ * 移除 kv/other 区分，统一为 keys 结构
  * 兼容 PHP 7.0
  */
 class GroupConfig
@@ -46,18 +46,11 @@ class GroupConfig
     private $cacheConfig;
     
     /**
-     * KV类型的键配置
+     * 键配置
      * 
      * @var array
      */
-    private $kvKeys;
-    
-    /**
-     * 其他类型的键配置
-     * 
-     * @var array
-     */
-    private $otherKeys;
+    private $keys;
 
     /**
      * 构造函数
@@ -67,18 +60,16 @@ class GroupConfig
      * @param string $version 分组版本
      * @param string|null $description 分组描述
      * @param array|null $cacheConfig 分组级缓存配置
-     * @param array $kvKeys KV类型的键配置
-     * @param array $otherKeys 其他类型的键配置
+     * @param array $keys 键配置
      */
-    public function __construct($name, $prefix, $version, $description = null, $cacheConfig = null, array $kvKeys = array(), array $otherKeys = array())
+    public function __construct($name, $prefix, $version, $description = null, $cacheConfig = null, array $keys = array())
     {
         $this->name = $name;
         $this->prefix = $prefix;
         $this->version = $version;
         $this->description = $description;
         $this->cacheConfig = $cacheConfig;
-        $this->kvKeys = $kvKeys;
-        $this->otherKeys = $otherKeys;
+        $this->keys = $keys;
     }
 
     /**
@@ -132,35 +123,24 @@ class GroupConfig
     }
 
     /**
-     * 获取KV类型的键配置
+     * 获取所有键配置
      * 
      * @return array
      */
-    public function getKvKeys()
+    public function getKeys()
     {
-        return $this->kvKeys;
+        return $this->keys;
     }
 
     /**
-     * 获取其他类型的键配置
-     * 
-     * @return array
-     */
-    public function getOtherKeys()
-    {
-        return $this->otherKeys;
-    }
-
-    /**
-     * 获取指定的键配置（KV或其他类型）
+     * 获取指定的键配置
      * 
      * @param string $keyName 键名称
      * @return KeyConfig|null
      */
     public function getKey($keyName)
     {
-        return isset($this->kvKeys[$keyName]) ? $this->kvKeys[$keyName] : 
-               (isset($this->otherKeys[$keyName]) ? $this->otherKeys[$keyName] : null);
+        return isset($this->keys[$keyName]) ? $this->keys[$keyName] : null;
     }
 
     /**
@@ -171,29 +151,22 @@ class GroupConfig
      */
     public function hasKey($keyName)
     {
-        return isset($this->kvKeys[$keyName]) || isset($this->otherKeys[$keyName]);
+        return isset($this->keys[$keyName]);
     }
 
     /**
-     * 检查KV键是否存在
+     * 检查键是否有缓存配置（用于判断是否应用缓存逻辑）
      * 
      * @param string $keyName 键名称
      * @return bool
      */
-    public function hasKvKey($keyName)
+    public function hasKeyCache($keyName)
     {
-        return isset($this->kvKeys[$keyName]);
-    }
-
-    /**
-     * 检查键是否为KV类型
-     * 
-     * @param string $keyName 键名称
-     * @return bool
-     */
-    public function isKvKey($keyName)
-    {
-        return $this->hasKvKey($keyName);
+        if (!isset($this->keys[$keyName])) {
+            return false;
+        }
+        
+        return $this->keys[$keyName]->hasCacheConfig();
     }
 
     /**
@@ -221,29 +194,21 @@ class GroupConfig
         $description = isset($config['description']) ? $config['description'] : null;
         $cacheConfig = isset($config['cache']) ? $config['cache'] : null;
         
-        $kvKeys = array();
-        $otherKeys = array();
+        $keys = array();
         
         // 解析键配置
         if (isset($config['keys']) && is_array($config['keys'])) {
-            // 解析KV类型的键
-            if (isset($config['keys']['kv']) && is_array($config['keys']['kv'])) {
-                foreach ($config['keys']['kv'] as $keyName => $keyConfig) {
-                    // 传递全局配置和组级配置给 KeyConfig
-                    $kvKeys[$keyName] = KeyConfig::fromArray($keyName, $keyConfig, 'kv', $globalCacheConfig, $cacheConfig);
-                }
-            }
-            
-            // 解析其他类型的键
-            if (isset($config['keys']['other']) && is_array($config['keys']['other'])) {
-                foreach ($config['keys']['other'] as $keyName => $keyConfig) {
-                    // 其他类型的键不需要缓存配置
-                    $otherKeys[$keyName] = KeyConfig::fromArray($keyName, $keyConfig, 'other');
-                }
+            foreach ($config['keys'] as $keyName => $keyConfig) {
+                // 判断键是否有缓存配置来决定类型
+                $hasCache = isset($keyConfig['cache']) && is_array($keyConfig['cache']);
+                $keyType = $hasCache ? 'kv' : 'other';
+                
+                // 传递全局配置和组级配置给 KeyConfig
+                $keys[$keyName] = KeyConfig::fromArray($keyName, $keyConfig, $keyType, $globalCacheConfig, $cacheConfig);
             }
         }
         
-        return new self($groupName, $prefix, $version, $description, $cacheConfig, $kvKeys, $otherKeys);
+        return new self($groupName, $prefix, $version, $description, $cacheConfig, $keys);
     }
 
     /**
@@ -265,20 +230,69 @@ class GroupConfig
         }
         
         // 转换键配置
-        if (!empty($this->kvKeys)) {
-            $result['keys']['kv'] = array();
-            foreach ($this->kvKeys as $keyName => $keyConfig) {
-                $result['keys']['kv'][$keyName] = $keyConfig->toArray();
-            }
-        }
-        
-        if (!empty($this->otherKeys)) {
-            $result['keys']['other'] = array();
-            foreach ($this->otherKeys as $keyName => $keyConfig) {
-                $result['keys']['other'][$keyName] = $keyConfig->toArray();
+        if (!empty($this->keys)) {
+            $result['keys'] = array();
+            foreach ($this->keys as $keyName => $keyConfig) {
+                $result['keys'][$keyName] = $keyConfig->toArray();
             }
         }
         
         return $result;
+    }
+
+    // ==================== 向后兼容方法 ====================
+    
+    /**
+     * 获取KV类型的键配置（向后兼容）
+     * 
+     * @return array
+     */
+    public function getKvKeys()
+    {
+        $kvKeys = array();
+        foreach ($this->keys as $keyName => $keyConfig) {
+            if ($keyConfig->isKvType()) {
+                $kvKeys[$keyName] = $keyConfig;
+            }
+        }
+        return $kvKeys;
+    }
+
+    /**
+     * 获取其他类型的键配置（向后兼容）
+     * 
+     * @return array
+     */
+    public function getOtherKeys()
+    {
+        $otherKeys = array();
+        foreach ($this->keys as $keyName => $keyConfig) {
+            if (!$keyConfig->isKvType()) {
+                $otherKeys[$keyName] = $keyConfig;
+            }
+        }
+        return $otherKeys;
+    }
+
+    /**
+     * 检查KV键是否存在（向后兼容）
+     * 
+     * @param string $keyName 键名称
+     * @return bool
+     */
+    public function hasKvKey($keyName)
+    {
+        return isset($this->keys[$keyName]) && $this->keys[$keyName]->isKvType();
+    }
+
+    /**
+     * 检查键是否为KV类型（向后兼容）
+     * 
+     * @param string $keyName 键名称
+     * @return bool
+     */
+    public function isKvKey($keyName)
+    {
+        return $this->hasKvKey($keyName);
     }
 }

@@ -16,38 +16,35 @@ return array(
         'hot_key_threshold' => 50,          // 用户数据热点阈值更低
     ),
     
-    // 键定义
+    // 键定义 - 统一结构，不区分类型
     'keys' => array(
-        'kv' => array(
-            'profile' => array(
-                'template' => 'profile:{id}',
-                'description' => '用户基础资料',
-                // 键级缓存配置（最高优先级）
-                'cache' => array(
-                    'ttl' => 10800,             // 用户资料缓存3小时
-                    'hot_key_threshold' => 30,
-                )
-            ),
-            'settings' => array(
-                'template' => 'settings:{id}',
-                'description' => '用户设置信息',
-                'cache' => array(
-                    'ttl' => 3600,              // 用户设置缓存1小时
-                )
-            ),
-            'avatar' => array(
-                'template' => 'avatar:{id}:{size}',
-                'description' => '用户头像',
-                'cache' => array(
-                    'ttl' => 14400,             // 头像缓存4小时
-                )
-            ),
+        'profile' => array(
+            'template' => 'profile:{id}',
+            'description' => '用户基础资料',
+            // 键级缓存配置（最高优先级）
+            'cache' => array(
+                'ttl' => 10800,             // 用户资料缓存3小时
+                'hot_key_threshold' => 30,
+            )
         ),
-        'other' => array(
-            'session' => array(
-                'template' => 'session:{token}',
-                'description' => '用户会话标识',
-            ),
+        'settings' => array(
+            'template' => 'settings:{id}',
+            'description' => '用户设置信息',
+            'cache' => array(
+                'ttl' => 3600,              // 用户设置缓存1小时
+            )
+        ),
+        'avatar' => array(
+            'template' => 'avatar:{id}:{size}',
+            'description' => '用户头像',
+            'cache' => array(
+                'ttl' => 14400,             // 头像缓存4小时
+            )
+        ),
+        'session' => array(
+            'template' => 'session:{token}',
+            'description' => '用户会话标识',
+            // 没有cache配置的键不会应用缓存逻辑，仅用于键生成
         ),
     ),
 );

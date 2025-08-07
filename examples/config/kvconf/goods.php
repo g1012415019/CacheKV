@@ -17,39 +17,37 @@ return array(
         'hot_key_extend_ttl' => 28800,      // 热点商品延长到8小时
     ),
     
-    // 键定义
+    // 键定义 - 统一结构
     'keys' => array(
-        'kv' => array(
-            'info' => array(
-                'template' => 'info:{id}',
-                'description' => '商品基础信息',
-                'cache' => array(
-                    'ttl' => 21600,             // 商品信息缓存6小时
-                )
-            ),
-            'price' => array(
-                'template' => 'price:{id}',
-                'description' => '商品价格',
-                'cache' => array(
-                    'ttl' => 1800,              // 价格缓存30分钟（更新频繁）
-                    'hot_key_threshold' => 100,
-                )
-            ),
-            'stock' => array(
-                'template' => 'stock:{id}',
-                'description' => '商品库存',
-                'cache' => array(
-                    'ttl' => 300,               // 库存缓存5分钟（实时性要求高）
-                    'hot_key_threshold' => 50,
-                )
-            ),
-            'category' => array(
-                'template' => 'category:{id}',
-                'description' => '商品分类信息',
-                'cache' => array(
-                    'ttl' => 43200,             // 分类信息缓存12小时
-                )
-            ),
+        'info' => array(
+            'template' => 'info:{id}',
+            'description' => '商品基础信息',
+            'cache' => array(
+                'ttl' => 21600,             // 商品信息缓存6小时
+            )
+        ),
+        'price' => array(
+            'template' => 'price:{id}',
+            'description' => '商品价格',
+            'cache' => array(
+                'ttl' => 1800,              // 价格缓存30分钟（更新频繁）
+                'hot_key_threshold' => 100,
+            )
+        ),
+        'stock' => array(
+            'template' => 'stock:{id}',
+            'description' => '商品库存',
+            'cache' => array(
+                'ttl' => 300,               // 库存缓存5分钟（实时性要求高）
+                'hot_key_threshold' => 50,
+            )
+        ),
+        'category' => array(
+            'template' => 'category:{id}',
+            'description' => '商品分类信息',
+            'cache' => array(
+                'ttl' => 43200,             // 分类信息缓存12小时
+            )
         ),
     ),
 );
