@@ -574,4 +574,90 @@ class CacheKV
     {
         return $this->checkAndRenewHotKey($cacheKey);
     }
+
+    /**
+     * 按前缀删除缓存
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $params 参数数组（可选），用于生成具体的前缀
+     * @return int 删除的键数量
+     * @throws \Exception
+     */
+    public function deleteByPrefix($template, array $params = array())
+    {
+        // 解析模板获取分组和键名
+        $parts = explode('.', $template, 2);
+        if (count($parts) !== 2) {
+            throw new \InvalidArgumentException("Invalid template format: {$template}. Expected format: 'group.key'");
+        }
+        
+        list($groupName, $keyName) = $parts;
+        
+        // 获取键管理器配置
+        $keyManagerConfig = ConfigManager::getKeyManagerConfig();
+        
+        // 检查分组是否存在
+        if (!isset($keyManagerConfig['groups'][$groupName])) {
+            throw new \InvalidArgumentException("Group '{$groupName}' not found in configuration");
+        }
+        
+        $groupConfig = $keyManagerConfig['groups'][$groupName];
+        
+        // 检查键是否存在
+        if (!isset($groupConfig['keys']['kv'][$keyName]) && !isset($groupConfig['keys']['other'][$keyName])) {
+            throw new \InvalidArgumentException("Key '{$keyName}' not found in group '{$groupName}'");
+        }
+        
+        // 获取键配置
+        $keyConfig = isset($groupConfig['keys']['kv'][$keyName]) 
+            ? $groupConfig['keys']['kv'][$keyName] 
+            : $groupConfig['keys']['other'][$keyName];
+        
+        // 构建前缀
+        $appPrefix = isset($keyManagerConfig['app_prefix']) ? $keyManagerConfig['app_prefix'] : 'app';
+        $separator = isset($keyManagerConfig['separator']) ? $keyManagerConfig['separator'] : ':';
+        $groupPrefix = $groupConfig['prefix'];
+        $groupVersion = $groupConfig['version'];
+        
+        // 替换模板中的参数
+        $keyTemplate = $keyConfig['template'];
+        if (!empty($params)) {
+            foreach ($params as $param => $value) {
+                $placeholder = '{' . $param . '}';
+                $keyTemplate = str_replace($placeholder, (string)$value, $keyTemplate);
+            }
+        }
+        
+        // 构建匹配模式
+        // 如果还有未替换的参数，用通配符替换
+        $pattern = preg_replace('/\{[^}]+\}/', '*', $keyTemplate);
+        $fullPattern = $appPrefix . $separator . $groupPrefix . $separator . $groupVersion . $separator . $pattern;
+        
+        // 如果没有通配符，添加通配符以匹配该前缀开头的所有键
+        if (strpos($fullPattern, '*') === false) {
+            $fullPattern .= '*';
+        }
+        
+        // 执行删除
+        $deletedCount = $this->driver->deleteByPattern($fullPattern);
+        
+        return $deletedCount;
+    }
+
+    /**
+     * 按完整前缀删除缓存（更直接的方式）
+     * 
+     * @param string $prefix 完整的键前缀，如 'myapp:user:v1:settings:'
+     * @return int 删除的键数量
+     */
+    public function deleteByFullPrefix($prefix)
+    {
+        // 确保前缀以通配符结尾
+        $pattern = rtrim($prefix, '*') . '*';
+        
+        // 执行删除
+        $deletedCount = $this->driver->deleteByPattern($pattern);
+        
+        return $deletedCount;
+    }
 }

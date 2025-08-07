@@ -159,9 +159,64 @@ function cache_kv_get_hot_keys($limit = 10)
 ]
 ```
 
+### cache_kv_delete_by_prefix()
+
+按前缀删除缓存，相当于按 tag 删除。
+
+```php
+function cache_kv_delete_by_prefix($template, array $params = array())
+```
+
+**参数：**
+- `$template` (string): 键模板，格式为 `'group.key'`
+- `$params` (array): 参数数组（可选），用于生成具体的前缀
+
+**返回值：** `int` - 删除的键数量
+
+**示例：**
+```php
+// 删除所有用户设置缓存
+$count = cache_kv_delete_by_prefix('user.settings');
+echo "删除了 {$count} 个用户设置缓存\n";
+
+// 删除特定用户的设置缓存
+$count = cache_kv_delete_by_prefix('user.settings', ['id' => 123]);
+echo "删除了用户123的 {$count} 个设置缓存\n";
+
+// 删除所有商品信息缓存
+$count = cache_kv_delete_by_prefix('goods.info');
+echo "删除了 {$count} 个商品缓存\n";
+```
+
 ---
 
-## 核心类
+### cache_kv_delete_by_full_prefix()
+
+按完整前缀删除缓存（更直接的方式）。
+
+```php
+function cache_kv_delete_by_full_prefix($prefix)
+```
+
+**参数：**
+- `$prefix` (string): 完整的键前缀，如 `'myapp:user:v1:settings:'`
+
+**返回值：** `int` - 删除的键数量
+
+**示例：**
+```php
+// 使用完整前缀删除
+$count = cache_kv_delete_by_full_prefix('myapp:user:v1:settings:');
+echo "删除了 {$count} 个缓存\n";
+
+// 从现有键提取前缀
+$sampleKey = cache_kv_make_key('user.profile', ['id' => 123]);
+$fullKey = (string)$sampleKey;  // myapp:user:v1:profile:123
+$prefix = substr($fullKey, 0, strrpos($fullKey, ':') + 1);  // myapp:user:v1:profile:
+$count = cache_kv_delete_by_full_prefix($prefix);
+```
+
+---
 
 ### CacheKVFactory
 

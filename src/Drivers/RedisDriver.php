@@ -162,14 +162,29 @@ class RedisDriver implements DriverInterface
     }
 
     /**
-     * 设置键值（如果不存在）
+     * 按模式删除缓存键
+     * 
+     * @param string $pattern 匹配模式，支持通配符 * 和 ?
+     * @return int 删除的键数量
      */
-    public function setNx($key, $value, $ttl = 0)
+    public function deleteByPattern($pattern)
     {
-        if ($ttl > 0) {
-            return $this->redis->set($key, $value, 'NX', 'EX', $ttl);
-        } else {
-            return $this->redis->setnx($key, $value);
-        }
+        // 使用 SCAN 命令安全地遍历键，避免阻塞Redis
+        $iterator = null;
+        $deletedCount = 0;
+        $batchSize = 1000; // 每批处理的键数量
+        
+        do {
+            // 使用 SCAN 命令获取匹配的键
+            $keys = $this->redis->scan($iterator, $pattern, $batchSize);
+            
+            if ($keys !== false && !empty($keys)) {
+                // 批量删除找到的键
+                $deleted = $this->redis->del($keys);
+                $deletedCount += $deleted;
+            }
+        } while ($iterator > 0);
+        
+        return $deletedCount;
     }
 }

@@ -136,3 +136,32 @@ if (!function_exists('cache_kv_make_keys')) {
         return new \Asfop\CacheKV\Key\CacheKeyCollection($cacheKeys);
     }
 }
+
+if (!function_exists('cache_kv_delete_by_prefix')) {
+    /**
+     * 按前缀删除缓存
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $params 参数数组（可选），用于生成具体的前缀
+     * @return int 删除的键数量
+     */
+    function cache_kv_delete_by_prefix($template, array $params = array())
+    {
+        $cache = CacheKVFactory::getInstance();
+        return $cache->deleteByPrefix($template, $params);
+    }
+}
+
+if (!function_exists('cache_kv_delete_by_full_prefix')) {
+    /**
+     * 按完整前缀删除缓存
+     * 
+     * @param string $prefix 完整的键前缀，如 'myapp:user:v1:settings:'
+     * @return int 删除的键数量
+     */
+    function cache_kv_delete_by_full_prefix($prefix)
+    {
+        $cache = CacheKVFactory::getInstance();
+        return $cache->deleteByFullPrefix($prefix);
+    }
+}

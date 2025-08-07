@@ -109,4 +109,12 @@ interface DriverInterface
      * @return bool
      */
     public function setNx($key, $value, $ttl = 0);
+    
+    /**
+     * 按模式删除缓存键
+     * 
+     * @param string $pattern 匹配模式，支持通配符 * 和 ?
+     * @return int 删除的键数量
+     */
+    public function deleteByPattern($pattern);
 }
