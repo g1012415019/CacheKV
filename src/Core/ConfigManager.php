@@ -57,12 +57,72 @@ class ConfigManager
             throw new CacheException("Config file must return an array, got: " . gettype($configArray) . " in file: {$configFile}");
         }
         
+        // 自动加载分组配置文件
+        $configArray = self::loadGroupConfigs($configFile, $configArray);
+        
         try {
             // 使用配置实体类创建配置对象
             self::$config = CacheKVConfig::fromArray($configArray);
         } catch (\InvalidArgumentException $e) {
             throw new CacheException("Invalid configuration structure in {$configFile}: " . $e->getMessage());
         }
+    }
+
+    /**
+     * 自动加载分组配置文件
+     * 
+     * @param string $mainConfigFile 主配置文件路径
+     * @param array $configArray 主配置数组
+     * @return array 合并后的配置数组
+     */
+    private static function loadGroupConfigs($mainConfigFile, array $configArray)
+    {
+        // 确定分组配置目录路径
+        $configDir = dirname($mainConfigFile);
+        $groupConfigDir = $configDir . '/kvconf';
+        
+        // 如果分组配置目录不存在，直接返回原配置
+        if (!is_dir($groupConfigDir)) {
+            return $configArray;
+        }
+        
+        // 扫描分组配置文件
+        $groupConfigFiles = glob($groupConfigDir . '/*.php');
+        if (empty($groupConfigFiles)) {
+            return $configArray;
+        }
+        
+        // 确保 key_manager.groups 存在
+        if (!isset($configArray['key_manager'])) {
+            $configArray['key_manager'] = array();
+        }
+        if (!isset($configArray['key_manager']['groups'])) {
+            $configArray['key_manager']['groups'] = array();
+        }
+        
+        // 加载每个分组配置文件
+        foreach ($groupConfigFiles as $groupConfigFile) {
+            $groupName = basename($groupConfigFile, '.php');
+            
+            try {
+                $groupConfig = include $groupConfigFile;
+                
+                // 验证分组配置格式
+                if (!is_array($groupConfig)) {
+                    throw new CacheException("Group config file must return an array, got: " . gettype($groupConfig) . " in file: {$groupConfigFile}");
+                }
+                
+                // 合并分组配置
+                $configArray['key_manager']['groups'][$groupName] = $groupConfig;
+                
+            } catch (\ParseError $e) {
+                throw new CacheException("Group config file has syntax error: {$groupConfigFile}. Error: " . $e->getMessage());
+            } catch (\Exception $e) {
+                throw new CacheException("Failed to load group config file: {$groupConfigFile}. Error: " . $e->getMessage());
+            }
+        }
+        
+        return $configArray;
     }
 
     /**

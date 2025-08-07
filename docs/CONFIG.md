@@ -4,6 +4,8 @@ CacheKV 的完整配置选项说明。
 
 ## 配置文件结构
 
+### 方式一：单文件配置（传统方式）
+
 ```php
 <?php
 return array(
@@ -11,10 +13,79 @@ return array(
         // 全局缓存配置
     ),
     'key_manager' => array(
-        // 键管理配置
+        'groups' => array(
+            'user' => array(/* 用户分组配置 */),
+            'goods' => array(/* 商品分组配置 */),
+            // ... 更多分组
+        ),
     ),
 );
 ```
+
+### 方式二：分组配置文件（推荐）
+
+**主配置文件** `config/cache_kv.php`：
+```php
+<?php
+return array(
+    'cache' => array(
+        'ttl' => 3600,
+        'enable_stats' => true,
+        // ... 全局配置
+    ),
+    'key_manager' => array(
+        'app_prefix' => 'myapp',
+        'separator' => ':',
+        // groups 会自动从 kvconf/ 目录加载
+    ),
+);
+```
+
+**分组配置目录** `config/kvconf/`：
+```
+config/
+├── cache_kv.php          # 主配置文件
+└── kvconf/               # 分组配置目录
+    ├── user.php          # 用户模块配置
+    ├── goods.php         # 商品模块配置
+    └── article.php       # 文章模块配置
+```
+
+**分组配置文件示例** `config/kvconf/user.php`：
+```php
+<?php
+return array(
+    'prefix' => 'user',
+    'version' => 'v1',
+    'description' => '用户相关数据缓存',
+    
+    'cache' => array(
+        'ttl' => 7200,                      // 用户数据缓存2小时
+        'hot_key_threshold' => 50,
+    ),
+    
+    'keys' => array(
+        'kv' => array(
+            'profile' => array(
+                'template' => 'profile:{id}',
+                'description' => '用户资料',
+                'cache' => array('ttl' => 10800)
+            ),
+            'settings' => array(
+                'template' => 'settings:{id}',
+                'description' => '用户设置'
+            ),
+        ),
+    ),
+);
+```
+
+### 分组配置文件的优势
+
+1. **避免冲突**：不同开发者配置自己的模块，不会冲突
+2. **模块化管理**：每个模块的配置独立维护
+3. **版本控制友好**：减少合并冲突
+4. **自动加载**：无需修改主配置文件
 
 ## 缓存配置 (`cache`)
 
@@ -53,35 +124,33 @@ return array(
 
 ### 分组配置
 
+每个分组配置文件的结构：
+
 ```php
-'key_manager' => array(
-    'groups' => array(
-        'user' => array(                // 分组名
-            'prefix' => 'user',         // 分组前缀
-            'version' => 'v1',          // 分组版本
-            'description' => '用户数据', // 描述（可选）
-            
-            // 组级缓存配置（可选）
-            'cache' => array(
-                'ttl' => 7200,          // 覆盖全局TTL
-            ),
-            
-            // 键定义
-            'keys' => array(
-                'kv' => array(          // KV类型的键
-                    'profile' => array(
-                        'template' => 'profile:{id}',
-                        'description' => '用户资料',
-                        // 键级缓存配置（可选）
-                        'cache' => array(
-                            'ttl' => 10800,
-                        )
-                    ),
-                ),
+<?php
+return array(
+    'prefix' => 'group_name',           // 分组前缀
+    'version' => 'v1',                  // 分组版本
+    'description' => '分组描述',         // 描述（可选）
+    
+    // 组级缓存配置（可选）
+    'cache' => array(
+        'ttl' => 7200,                  // 覆盖全局TTL
+    ),
+    
+    // 键定义
+    'keys' => array(
+        'kv' => array(                  // KV类型的键
+            'key_name' => array(
+                'template' => 'template:{param}',
+                'description' => '键描述',
+                'cache' => array(       // 键级配置（可选）
+                    'ttl' => 10800,
+                )
             ),
         ),
     ),
-),
+);
 ```
 
 ## 配置继承
@@ -105,16 +174,68 @@ return array(
 )
 ```
 
+## 使用示例
+
+### 创建分组配置
+
+**1. 用户模块开发者创建** `config/kvconf/user.php`：
+```php
+<?php
+return array(
+    'prefix' => 'user',
+    'version' => 'v1',
+    'keys' => array(
+        'kv' => array(
+            'profile' => array('template' => 'profile:{id}'),
+            'settings' => array('template' => 'settings:{id}'),
+        ),
+    ),
+);
+```
+
+**2. 商品模块开发者创建** `config/kvconf/goods.php`：
+```php
+<?php
+return array(
+    'prefix' => 'goods',
+    'version' => 'v1',
+    'keys' => array(
+        'kv' => array(
+            'info' => array('template' => 'info:{id}'),
+            'price' => array('template' => 'price:{id}'),
+        ),
+    ),
+);
+```
+
+**3. 使用时无需修改主配置**：
+```php
+// API 使用方式完全不变
+CacheKVFactory::configure(
+    function() {
+        $redis = new Redis();
+        $redis->connect('127.0.0.1', 6379);
+        return $redis;
+    },
+    '/path/to/config/cache_kv.php'  // 主配置文件路径
+);
+
+// 自动加载所有分组配置
+$user = cache_kv_get('user.profile', ['id' => 123], $callback);
+$goods = cache_kv_get('goods.info', ['id' => 456], $callback);
+```
+
 ## 环境配置示例
 
 ### 开发环境
 
+**主配置** `config/cache_kv.php`：
 ```php
 return array(
     'cache' => array(
         'ttl' => 300,                       // 短缓存便于调试
         'enable_stats' => true,
-        'hot_key_auto_renewal' => false,    // 关闭自动续期
+        'hot_key_auto_renewal' => false,
     ),
     'key_manager' => array(
         'app_prefix' => 'dev_myapp',        // 环境隔离
@@ -122,14 +243,17 @@ return array(
 );
 ```
 
+**分组配置保持不变**，环境差异通过主配置控制。
+
 ### 生产环境
 
+**主配置** `config/cache_kv.php`：
 ```php
 return array(
     'cache' => array(
         'ttl' => 3600,                      // 长缓存
         'enable_stats' => true,
-        'hot_key_auto_renewal' => true,     // 启用自动续期
+        'hot_key_auto_renewal' => true,
         'hot_key_threshold' => 1000,        // 更高阈值
     ),
     'key_manager' => array(
@@ -138,102 +262,39 @@ return array(
 );
 ```
 
-## 完整配置示例
-
-```php
-<?php
-return array(
-    'cache' => array(
-        // 基础配置
-        'ttl' => 3600,
-        'enable_stats' => true,
-        
-        // 热点键配置
-        'hot_key_auto_renewal' => true,
-        'hot_key_threshold' => 100,
-        'hot_key_extend_ttl' => 7200,
-        'hot_key_max_ttl' => 86400,
-        
-        // 高级配置
-        'null_cache_ttl' => 300,
-        'enable_null_cache' => true,
-        'ttl_random_range' => 300,
-    ),
-    
-    'key_manager' => array(
-        'app_prefix' => 'myapp',
-        'separator' => ':',
-        
-        'groups' => array(
-            'user' => array(
-                'prefix' => 'user',
-                'version' => 'v1',
-                'description' => '用户相关数据',
-                'cache' => array(
-                    'ttl' => 7200,
-                    'hot_key_threshold' => 50,
-                ),
-                'keys' => array(
-                    'kv' => array(
-                        'profile' => array(
-                            'template' => 'profile:{id}',
-                            'description' => '用户资料',
-                            'cache' => array('ttl' => 10800)
-                        ),
-                        'settings' => array(
-                            'template' => 'settings:{id}',
-                            'description' => '用户设置'
-                        ),
-                    ),
-                ),
-            ),
-            
-            'product' => array(
-                'prefix' => 'product',
-                'version' => 'v1',
-                'keys' => array(
-                    'kv' => array(
-                        'info' => array(
-                            'template' => 'info:{id}',
-                            'cache' => array('ttl' => 14400) // 4小时
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    ),
-);
-```
-
-## 配置验证
-
-### 必需配置项
-
-- `key_manager.groups` 必须存在
-- 每个分组必须有 `prefix` 和 `version`
-- 每个分组必须有 `keys` 定义
-
-### 常见错误
-
-```php
-// ❌ 错误：缺少分组配置
-'key_manager' => array(
-    'app_prefix' => 'myapp',
-    // 缺少 groups
-),
-
-// ❌ 错误：分组配置不完整
-'groups' => array(
-    'user' => array(
-        'prefix' => 'user',
-        // 缺少 version 和 keys
-    ),
-),
-```
-
 ## 最佳实践
 
-1. **环境隔离**：使用不同的 `app_prefix`
-2. **版本管理**：数据结构变更时升级 `version`
-3. **合理TTL**：根据数据更新频率设置TTL
-4. **分组设计**：按业务模块划分分组
+### 1. 分组配置文件命名
+
+- 使用小写字母和下划线：`user.php`, `goods.php`, `user_order.php`
+- 文件名即为分组名，保持一致性
+
+### 2. 模块化开发
+
+```
+project/
+├── modules/
+│   ├── user/
+│   │   ├── UserController.php
+│   │   └── config/user.php         # 用户模块配置
+│   └── goods/
+│       ├── GoodsController.php
+│       └── config/goods.php        # 商品模块配置
+└── config/
+    ├── cache_kv.php                # 主配置
+    └── kvconf/                     # 分组配置目录
+        ├── user.php -> ../modules/user/config/user.php
+        └── goods.php -> ../modules/goods/config/goods.php
+```
+
+### 3. 版本管理
+
+- 每个分组独立版本控制
+- 数据结构变更时升级分组版本
+- 主配置文件版本控制全局配置
+
+### 4. 团队协作
+
+- 每个开发者负责自己模块的配置文件
+- 主配置文件由架构师维护
+- 减少配置文件的合并冲突
