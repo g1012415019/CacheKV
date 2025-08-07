@@ -127,12 +127,11 @@ class KeyConfig
         // 创建缓存配置对象
         $cacheConfig = null;
         if (isset($config['cache']) && is_array($config['cache'])) {
-            // 有键级缓存配置
+            // 只有键明确有缓存配置时才创建 CacheConfig 对象
             $cacheConfig = CacheConfig::fromArray($config['cache'], $globalCacheConfig, $groupCacheConfig);
-        } elseif ($groupCacheConfig !== null || $globalCacheConfig !== null) {
-            // 没有键级配置，但有组级或全局配置，创建继承的配置
-            $cacheConfig = CacheConfig::fromArray(array(), $globalCacheConfig, $groupCacheConfig);
         }
+        // 注意：如果键没有明确的cache配置，我们不创建CacheConfig对象
+        // 这样 hasCacheConfig() 会返回 false，表示该键不应用缓存逻辑
         
         return new self($keyName, $template, $description, $cacheConfig);
     }

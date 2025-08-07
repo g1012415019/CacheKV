@@ -211,14 +211,11 @@ class ConfigManager
             throw new CacheException("Group '{$groupName}' not found in configuration");
         }
         
-        // 获取组级缓存配置作为基础
-        $groupCacheConfig = self::getGroupCacheConfig($groupName);
-        
         // 检查键是否存在
         if ($groupConfig->hasKey($keyName)) {
             $keyConfig = $groupConfig->getKey($keyName);
             
-            // 检查键是否有缓存配置
+            // 只有键明确有缓存配置时才返回配置
             if ($keyConfig->hasCacheConfig()) {
                 $keyCacheConfig = $keyConfig->getCacheConfig();
                 
@@ -227,11 +224,12 @@ class ConfigManager
                 }
             }
             
-            return $groupCacheConfig;
+            // 键没有明确的缓存配置，返回null
+            return null;
         }
         
-        // 键不存在，返回组配置
-        return $groupCacheConfig;
+        // 键不存在，返回null
+        return null;
     }
 
     /**

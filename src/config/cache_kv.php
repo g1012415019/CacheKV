@@ -22,7 +22,7 @@ return array(
         'stats_prefix' => 'cachekv:stats:',         // 统计数据Redis键前缀
         'stats_ttl' => 604800,                      // 统计数据TTL（秒，默认7天）
         
-        // 热点键自动续期配置（简化版）
+        // 热点键自动续期配置
         'hot_key_auto_renewal' => true,             // 是否启用热点键自动续期
         'hot_key_threshold' => 100,                 // 热点键阈值（访问次数）
         'hot_key_extend_ttl' => 7200,               // 热点键延长TTL（秒，默认2小时）
@@ -54,49 +54,45 @@ return array(
                     'hot_key_max_ttl' => 172800,    // 用户热点数据最大2天
                 ),
                 
-                // 键定义
+                // 键定义 - 统一结构
                 'keys' => array(
-                    // K-V类型的键（会应用缓存配置）
-                    'kv' => array(
-                        'profile' => array(
-                            'template' => 'profile:{id}',
-                            'description' => '用户基础资料',
-                            'cache' => array(
-                                'ttl' => 10800,     // 用户资料缓存3小时
-                                'hot_key_threshold' => 30,
-                            )
-                        ),
-                        'settings' => array(
-                            'template' => 'settings:{id}',
-                            'description' => '用户设置信息',
-                            'cache' => array(
-                                'ttl' => 14400,     // 用户设置缓存4小时
-                            )
-                        ),
-                        'avatar' => array(
-                            'template' => 'avatar:{id}:{size}',
-                            'description' => '用户头像URL',
-                            'cache' => array(
-                                'ttl' => 86400,     // 头像URL缓存1天
-                                'hot_key_auto_renewal' => false, // 头像不需要热点续期
-                            )
-                        ),
+                    'profile' => array(
+                        'template' => 'profile:{id}',
+                        'description' => '用户基础资料',
+                        'cache' => array(
+                            'ttl' => 10800,         // 用户资料缓存3小时
+                            'hot_key_threshold' => 30,
+                        )
                     ),
-                    
-                    // 其他类型的键（不应用缓存配置，仅用于键生成）
-                    'other' => array(
-                        'session' => array(
-                            'template' => 'session:{token}',
-                            'description' => '用户会话标识',
-                        ),
-                        'lock' => array(
-                            'template' => 'lock:{id}:{action}',
-                            'description' => '用户操作锁',
-                        ),
-                        'counter' => array(
-                            'template' => 'counter:{id}:{type}',
-                            'description' => '用户计数器',
-                        ),
+                    'settings' => array(
+                        'template' => 'settings:{id}',
+                        'description' => '用户设置信息',
+                        'cache' => array(
+                            'ttl' => 14400,         // 用户设置缓存4小时
+                        )
+                    ),
+                    'avatar' => array(
+                        'template' => 'avatar:{id}:{size}',
+                        'description' => '用户头像URL',
+                        'cache' => array(
+                            'ttl' => 86400,         // 头像URL缓存1天
+                            'hot_key_auto_renewal' => false, // 头像不需要热点续期
+                        )
+                    ),
+                    'session' => array(
+                        'template' => 'session:{token}',
+                        'description' => '用户会话标识',
+                        // 没有cache配置，仅用于键生成
+                    ),
+                    'lock' => array(
+                        'template' => 'lock:{id}:{action}',
+                        'description' => '用户操作锁',
+                        // 没有cache配置，仅用于键生成
+                    ),
+                    'counter' => array(
+                        'template' => 'counter:{id}:{type}',
+                        'description' => '用户计数器',
+                        // 没有cache配置，仅用于键生成
                     ),
                 ),
             ),
