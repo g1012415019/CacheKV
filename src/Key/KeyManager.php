@@ -179,6 +179,50 @@ class KeyManager
     }
 
     /**
+     * 批量获取缓存键对象
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表
+     * @return array 关联数组，键为字符串形式的缓存键，值为CacheKey对象
+     * @throws CacheException
+     */
+    public function getKeys($template, array $paramsList)
+    {
+        if (empty($paramsList)) {
+            return array();
+        }
+        
+        // 解析模板
+        $parts = explode('.', $template, 2);
+        if (count($parts) !== 2) {
+            throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
+        }
+        
+        $groupName = $parts[0];
+        $keyName = $parts[1];
+        
+        $result = array();
+        
+        foreach ($paramsList as $params) {
+            if (!is_array($params)) {
+                continue; // 跳过非数组参数
+            }
+            
+            try {
+                $cacheKey = $this->createKey($groupName, $keyName, $params);
+                $keyString = (string)$cacheKey;
+                $result[$keyString] = $cacheKey;
+            } catch (CacheException $e) {
+                // 如果单个键创建失败，可以选择跳过或抛出异常
+                // 这里选择抛出异常以保持一致性
+                throw $e;
+            }
+        }
+        
+        return $result;
+    }
+
+    /**
      * 重置实例（测试用）
      */
     public static function reset()

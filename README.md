@@ -65,6 +65,16 @@ $users = cache_kv_get_multiple('user.profile', [
     }
     return $data; // 返回关联数组
 });
+
+// 批量获取键对象（不执行缓存操作）
+$keys = cache_kv_get_keys('user.profile', [
+    ['id' => 1], ['id' => 2], ['id' => 3]
+]);
+
+// 检查键配置
+foreach ($keys as $keyString => $keyObj) {
+    echo "键: {$keyString}, 有缓存配置: " . ($keyObj->hasCacheConfig() ? '是' : '否') . "\n";
+}
 ```
 
 ## 🚀 核心功能

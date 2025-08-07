@@ -137,6 +137,44 @@ if (!function_exists('cache_kv_make_keys')) {
     }
 }
 
+if (!function_exists('cache_kv_get_keys')) {
+    /**
+     * 批量获取缓存键对象（不执行缓存操作）
+     * 
+     * 这个函数只生成键对象，不进行实际的缓存读取操作
+     * 适用于需要获取键信息、检查键配置等场景
+     * 
+     * @param string $template 键模板，格式：'group.key'
+     * @param array $paramsList 参数数组列表，每个元素必须是数组
+     * @return array 缓存键对象数组，键为字符串形式的缓存键，值为CacheKey对象
+     * 
+     * @example
+     * // 批量获取用户资料键对象
+     * $keys = cache_kv_get_keys('user.profile', [
+     *     ['id' => 1],
+     *     ['id' => 2], 
+     *     ['id' => 3]
+     * ]);
+     * 
+     * // 结果格式：
+     * // [
+     * //     'myapp:user:v1:profile:1' => CacheKey对象,
+     * //     'myapp:user:v1:profile:2' => CacheKey对象,
+     * //     'myapp:user:v1:profile:3' => CacheKey对象
+     * // ]
+     * 
+     * // 检查键配置
+     * foreach ($keys as $keyString => $keyObj) {
+     *     echo "键: {$keyString}, 有缓存配置: " . ($keyObj->hasCacheConfig() ? '是' : '否') . "\n";
+     * }
+     */
+    function cache_kv_get_keys($template, array $paramsList)
+    {
+        // 委托给 KeyManager 处理，不包含业务逻辑
+        return \Asfop\CacheKV\Key\KeyManager::getInstance()->getKeys($template, $paramsList);
+    }
+}
+
 if (!function_exists('cache_kv_delete_by_prefix')) {
     /**
      * 按前缀删除缓存
