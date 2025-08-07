@@ -90,9 +90,15 @@ try {
         echo "  用户资料热点阈值: {$profileCacheConfig['hot_key_threshold']} (应该是30，键级覆盖)\n";
     }
     
-    // 测试没有缓存配置的键
+    // 测试没有明确缓存配置的键 - 应该返回继承的配置供其他用途使用
     $sessionCacheConfig = ConfigManager::getKeyCacheConfig('user', 'session');
-    echo "  会话键缓存配置: " . ($sessionCacheConfig ? '有' : '无') . " (应该有，继承组级配置)\n\n";
+    echo "  会话键缓存配置: " . ($sessionCacheConfig ? '有' : '无') . " (应该有，继承组级配置供其他用途)\n";
+    if ($sessionCacheConfig) {
+        echo "  会话键TTL: {$sessionCacheConfig['ttl']}秒 (继承的组级配置)\n";
+    }
+    
+    // 但是 CacheKV 不会对会话键应用缓存逻辑
+    echo "  会话键应用CacheKV缓存逻辑: " . ($sessionKey->hasCacheConfig() ? '是' : '否') . " (应该是否)\n\n";
     
     // 7. 测试错误处理
     echo "7. 测试错误处理...\n";

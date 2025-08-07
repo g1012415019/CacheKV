@@ -197,7 +197,7 @@ class ConfigManager
      * 
      * @param string $groupName 组名
      * @param string $keyName 键名
-     * @return array|null 如果键没有缓存配置，返回null
+     * @return array|null 返回缓存配置，键不存在时返回null
      * @throws CacheException 当配置未加载或组不存在时
      */
     public static function getKeyCacheConfig($groupName, $keyName)
@@ -211,11 +211,14 @@ class ConfigManager
             throw new CacheException("Group '{$groupName}' not found in configuration");
         }
         
+        // 获取组级缓存配置作为基础
+        $groupCacheConfig = self::getGroupCacheConfig($groupName);
+        
         // 检查键是否存在
         if ($groupConfig->hasKey($keyName)) {
             $keyConfig = $groupConfig->getKey($keyName);
             
-            // 只有键明确有缓存配置时才返回配置
+            // 如果键有明确的缓存配置，使用键级配置
             if ($keyConfig->hasCacheConfig()) {
                 $keyCacheConfig = $keyConfig->getCacheConfig();
                 
@@ -224,8 +227,9 @@ class ConfigManager
                 }
             }
             
-            // 键没有明确的缓存配置，返回null
-            return null;
+            // 键没有明确的缓存配置，返回继承的组级配置
+            // 这样其他地方可以使用这些配置，但CacheKV不会对这些键应用缓存逻辑
+            return $groupCacheConfig;
         }
         
         // 键不存在，返回null
