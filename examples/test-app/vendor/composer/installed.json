@@ -1,0 +1,76 @@
+{
+    "packages": [
+        {
+            "name": "asfop1/cache-kv",
+            "version": "dev-main",
+            "version_normalized": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../..",
+                "reference": "e7d9948f23b4ddaeee13b08143a92ebb74835a95"
+            },
+            "require": {
+                "ext-redis": "*",
+                "php": ">=7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^6.0|^7.0|^8.0|^9.0"
+            },
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Asfop\\CacheKV\\": "src/"
+                },
+                "files": [
+                    "src/helpers.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Asfop\\CacheKV\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "test-coverage": [
+                    "phpunit --coverage-html coverage"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "ASFOP",
+                    "email": "support@asfop.com"
+                }
+            ],
+            "description": "简化缓存操作的 PHP 库，专注于实现若无则从数据源获取并回填缓存这一常见模式",
+            "homepage": "https://github.com/asfop1/CacheKV",
+            "keywords": [
+                "cache",
+                "hot-key",
+                "key-value",
+                "kv",
+                "performance",
+                "php",
+                "redis",
+                "statistics"
+            ],
+            "support": {
+                "issues": "https://github.com/asfop1/CacheKV/issues",
+                "source": "https://github.com/asfop1/CacheKV"
+            },
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            },
+            "install-path": "../asfop1/cache-kv"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}
