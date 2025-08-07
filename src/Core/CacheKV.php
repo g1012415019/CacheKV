@@ -4,6 +4,7 @@ namespace Asfop\CacheKV\Core;
 
 use Asfop\CacheKV\Drivers\DriverInterface;
 use Asfop\CacheKV\Key\CacheKey;
+use Asfop\CacheKV\Key\KeyManager;
 use Asfop\CacheKV\Stats\KeyStats;
 
 /**
