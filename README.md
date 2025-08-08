@@ -14,7 +14,7 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实�
 **CacheKV 让缓存操作变得简单：**
 ```php
 // 一行代码搞定：检查缓存 → 未命中则获取数据 → 自动回填缓存
-$data = cache_kv_get('user.profile', ['id' => 123], function() {
+$data = kv_get('user.profile', ['id' => 123], function() {
     return getUserFromDatabase(123); // 只在缓存未命中时执行
 });
 ```
@@ -49,12 +49,12 @@ CacheKVFactory::configure(function() {
 });
 
 // 单个数据获取
-$user = cache_kv_get('user.profile', ['id' => 123], function() {
+$user = kv_get('user.profile', ['id' => 123], function() {
     return ['id' => 123, 'name' => 'John', 'email' => 'john@example.com'];
 });
 
 // 批量数据获取
-$users = cache_kv_get_multiple('user.profile', [
+$users = kv_get_multi('user.profile', [
     ['id' => 1], ['id' => 2], ['id' => 3]
 ], function($missedKeys) {
     $data = [];
@@ -67,7 +67,7 @@ $users = cache_kv_get_multiple('user.profile', [
 });
 
 // 批量获取键对象（不执行缓存操作）
-$keys = cache_kv_get_keys('user.profile', [
+$keys = kv_get_keys('user.profile', [
     ['id' => 1], ['id' => 2], ['id' => 3]
 ]);
 
@@ -90,12 +90,57 @@ foreach ($keys as $keyString => $keyObj) {
 
 ```php
 // 获取统计信息
-$stats = cache_kv_get_stats();
+$stats = kv_stats();
 // ['hits' => 1500, 'misses' => 300, 'hit_rate' => '83.33%', ...]
 
 // 获取热点键
-$hotKeys = cache_kv_get_hot_keys(10);
+$hotKeys = kv_hot_keys(10);
 // ['user:profile:123' => 45, 'user:profile:456' => 32, ...]
+```
+
+## ✨ 简洁API设计
+
+CacheKV 提供了简洁易用的函数名，同时保持向后兼容：
+
+### 🔧 核心操作
+```php
+kv_get($template, $params, $callback, $ttl)      // 获取缓存
+kv_get_multi($template, $paramsList, $callback)  // 批量获取
+```
+
+### 🗝️ 键管理
+```php
+kv_key($template, $params)           // 创建键字符串
+kv_keys($template, $paramsList)      // 批量创建键
+kv_get_keys($template, $paramsList)  // 获取键对象
+```
+
+### 🗑️ 删除操作
+```php
+kv_delete_prefix($template, $params)  // 按前缀删除
+kv_delete_full($prefix)               // 按完整前缀删除
+```
+
+### 📊 统计功能
+```php
+kv_stats()              // 获取统计信息
+kv_hot_keys($limit)     // 获取热点键
+kv_clear_stats()        // 清空统计
+```
+
+### ⚙️ 配置管理
+```php
+kv_config($details)     // 获取配置信息
+```
+
+### 🔄 向后兼容
+所有原有函数名仍然可用：
+```php
+// 新版本（推荐）
+$user = kv_get('user.profile', ['id' => 123], $callback);
+
+// 旧版本（仍然支持）
+$user = cache_kv_get('user.profile', ['id' => 123], $callback);
 ```
 
 ## 📚 文档
