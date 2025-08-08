@@ -271,15 +271,61 @@ class KeyManager
     /**
      * 获取所有键配置信息
      * 
+     * @param bool $includeDetails 是否包含详细配置信息（默认true）
      * @return array 所有分组和键的配置信息
      */
-    public function getAllKeysConfig()
+    public function getAllKeysConfig($includeDetails = true)
     {
         if ($this->config === null) {
             return array();
         }
         
-        return $this->config->toArray()['groups'];
+        $config = $this->config->toArray()['groups'];
+        
+        if (!$includeDetails) {
+            // 返回简化版本：只返回可用的模板列表
+            $templates = array();
+            foreach ($config as $groupName => $groupConfig) {
+                if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
+                    foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
+                        $templates[] = $groupName . '.' . $keyName;
+                    }
+                }
+            }
+            return $templates;
+        }
+        
+        // 返回详细版本：包含完整配置信息
+        $detailedConfig = array();
+        foreach ($config as $groupName => $groupConfig) {
+            $detailedConfig[$groupName] = array(
+                'prefix' => isset($groupConfig['prefix']) ? $groupConfig['prefix'] : $groupName,
+                'version' => isset($groupConfig['version']) ? $groupConfig['version'] : 'v1',
+                'cache_config' => isset($groupConfig['cache']) ? $groupConfig['cache'] : null,
+                'keys' => array()
+            );
+            
+            if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
+                foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
+                    $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
+                    
+                    // 提取模板中的参数
+                    $parameters = array();
+                    if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
+                        $parameters = $matches[1];
+                    }
+                    
+                    $detailedConfig[$groupName]['keys'][$keyName] = array(
+                        'template' => $template,
+                        'full_template' => $groupName . '.' . $keyName,
+                        'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
+                        'parameters' => $parameters
+                    );
+                }
+            }
+        }
+        
+        return $detailedConfig;
     }
 
     /**

@@ -173,90 +173,12 @@ if (!function_exists('cache_kv_get_all_keys_config')) {
     /**
      * 获取所有key配置信息
      * 
-     * 返回当前配置中所有可用的分组和键的详细信息，
-     * 包括模板、缓存配置等，便于开发调试和文档生成
-     * 
      * @param bool $includeDetails 是否包含详细配置信息（默认true）
      * @return array 所有key配置信息
-     * 
-     * @example
-     * // 获取所有key配置
-     * $allKeys = cache_kv_get_all_keys_config();
-     * 
-     * // 结果格式：
-     * // [
-     * //     'user' => [
-     * //         'prefix' => 'user',
-     * //         'version' => 'v1',
-     * //         'keys' => [
-     * //             'profile' => [
-     * //                 'template' => 'profile:{id}',
-     * //                 'full_template' => 'user.profile',
-     * //                 'cache_config' => ['ttl' => 1800],
-     * //                 'parameters' => ['id']
-     * //             ]
-     * //         ]
-     * //     ]
-     * // ]
-     * 
-     * // 简化版本（只显示可用的模板）
-     * $simpleKeys = cache_kv_get_all_keys_config(false);
-     * // ['user.profile', 'user.settings', 'goods.info', 'goods.price']
      */
     function cache_kv_get_all_keys_config($includeDetails = true)
     {
-        try {
-            $keyManager = \Asfop\CacheKV\Key\KeyManager::getInstance();
-            $config = $keyManager->getAllKeysConfig();
-            
-            if (!$includeDetails) {
-                // 返回简化版本：只返回可用的模板列表
-                $templates = array();
-                foreach ($config as $groupName => $groupConfig) {
-                    if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
-                        foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                            $templates[] = $groupName . '.' . $keyName;
-                        }
-                    }
-                }
-                return $templates;
-            }
-            
-            // 返回详细版本：包含完整配置信息
-            $detailedConfig = array();
-            foreach ($config as $groupName => $groupConfig) {
-                $detailedConfig[$groupName] = array(
-                    'prefix' => isset($groupConfig['prefix']) ? $groupConfig['prefix'] : $groupName,
-                    'version' => isset($groupConfig['version']) ? $groupConfig['version'] : 'v1',
-                    'cache_config' => isset($groupConfig['cache']) ? $groupConfig['cache'] : null,
-                    'keys' => array()
-                );
-                
-                if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
-                    foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                        $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
-                        
-                        // 提取模板中的参数
-                        $parameters = array();
-                        if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
-                            $parameters = $matches[1];
-                        }
-                        
-                        $detailedConfig[$groupName]['keys'][$keyName] = array(
-                            'template' => $template,
-                            'full_template' => $groupName . '.' . $keyName,
-                            'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
-                            'parameters' => $parameters
-                        );
-                    }
-                }
-            }
-            
-            return $detailedConfig;
-            
-        } catch (\Exception $e) {
-            // 如果获取配置失败，返回空数组
-            return array();
-        }
+        // 委托给 KeyManager 处理，不包含业务逻辑
+        return \Asfop\CacheKV\Key\KeyManager::getInstance()->getAllKeysConfig($includeDetails);
     }
 }
