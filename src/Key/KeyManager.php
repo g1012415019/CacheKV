@@ -283,19 +283,41 @@ class KeyManager
         $config = $this->config->toArray()['groups'];
         
         if (!$includeDetails) {
-            // 返回简化版本：只返回可用的模板列表
-            $templates = array();
-            foreach ($config as $groupName => $groupConfig) {
-                if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
-                    foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                        $templates[] = $groupName . '.' . $keyName;
-                    }
-                }
-            }
-            return $templates;
+            // 简化版本：只返回模板列表
+            return $this->extractTemplateList($config);
         }
         
-        // 返回详细版本：包含完整配置信息
+        // 详细版本：返回完整配置信息
+        return $this->buildDetailedConfig($config);
+    }
+    
+    /**
+     * 提取模板列表（简化版本）
+     * 
+     * @param array $config 原始配置数组
+     * @return array 模板列表
+     */
+    private function extractTemplateList(array $config)
+    {
+        $templates = array();
+        foreach ($config as $groupName => $groupConfig) {
+            if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
+                foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
+                    $templates[] = $groupName . '.' . $keyName;
+                }
+            }
+        }
+        return $templates;
+    }
+    
+    /**
+     * 构建详细配置信息
+     * 
+     * @param array $config 原始配置数组
+     * @return array 详细配置信息
+     */
+    private function buildDetailedConfig(array $config)
+    {
         $detailedConfig = array();
         foreach ($config as $groupName => $groupConfig) {
             $detailedConfig[$groupName] = array(
@@ -307,25 +329,37 @@ class KeyManager
             
             if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
                 foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                    $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
-                    
-                    // 提取模板中的参数
-                    $parameters = array();
-                    if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
-                        $parameters = $matches[1];
-                    }
-                    
-                    $detailedConfig[$groupName]['keys'][$keyName] = array(
-                        'template' => $template,
-                        'full_template' => $groupName . '.' . $keyName,
-                        'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
-                        'parameters' => $parameters
-                    );
+                    $detailedConfig[$groupName]['keys'][$keyName] = $this->buildKeyConfig($groupName, $keyName, $keyConfig);
                 }
             }
         }
-        
         return $detailedConfig;
+    }
+    
+    /**
+     * 构建单个键的配置信息
+     * 
+     * @param string $groupName 分组名
+     * @param string $keyName 键名
+     * @param array $keyConfig 键配置
+     * @return array 键的详细配置
+     */
+    private function buildKeyConfig($groupName, $keyName, array $keyConfig)
+    {
+        $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
+        
+        // 提取模板中的参数
+        $parameters = array();
+        if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
+            $parameters = $matches[1];
+        }
+        
+        return array(
+            'template' => $template,
+            'full_template' => $groupName . '.' . $keyName,
+            'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
+            'parameters' => $parameters
+        );
     }
 
     /**
