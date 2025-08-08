@@ -47,13 +47,18 @@ class KeyManager
             $this->config = $config;
         } else {
             // 从全局配置创建
-            $configArray = self::$globalConfig !== null ? self::$globalConfig : array(
-                'app_prefix' => 'app',
-                'separator' => ':',
-                'groups' => array()
-            );
+            $keyManagerConfig = array();
+            if (self::$globalConfig !== null && isset(self::$globalConfig['key_manager'])) {
+                $keyManagerConfig = self::$globalConfig['key_manager'];
+            } else {
+                $keyManagerConfig = array(
+                    'app_prefix' => 'app',
+                    'separator' => ':',
+                    'groups' => array()
+                );
+            }
             
-            $this->config = KeyManagerConfig::fromArray($configArray);
+            $this->config = KeyManagerConfig::fromArray($keyManagerConfig);
         }
     }
 
@@ -256,7 +261,7 @@ class KeyManager
      * 获取所有键配置信息
      * 
      * @param bool $includeDetails 是否包含详细配置信息（默认true）
-     * @return array 所有分组和键的配置信息
+     * @return array 完整的配置信息，包含cache和key_manager配置
      */
     public function getAllKeysConfig($includeDetails = true)
     {
@@ -264,15 +269,30 @@ class KeyManager
             return array();
         }
         
-        $config = $this->config->toArray()['groups'];
+        // 获取key_manager配置
+        $keyManagerConfig = $this->config->toArray();
+        $groupsConfig = isset($keyManagerConfig['groups']) ? $keyManagerConfig['groups'] : array();
         
         if (!$includeDetails) {
             // 简化版本：只返回模板列表
-            return $this->extractTemplateList($config);
+            return $this->extractTemplateList($groupsConfig);
         }
         
-        // 详细版本：返回完整配置信息
-        return $this->buildDetailedConfig($config);
+        // 详细版本：返回完整配置对象
+        // 从全局配置获取cache配置
+        $cacheConfig = array();
+        if (self::$globalConfig !== null && isset(self::$globalConfig['cache'])) {
+            $cacheConfig = self::$globalConfig['cache'];
+        }
+        
+        return array(
+            'cache' => $cacheConfig,
+            'key_manager' => array(
+                'app_prefix' => isset($keyManagerConfig['app_prefix']) ? $keyManagerConfig['app_prefix'] : '',
+                'separator' => isset($keyManagerConfig['separator']) ? $keyManagerConfig['separator'] : ':',
+                'groups' => $this->buildDetailedConfig($groupsConfig)
+            )
+        );
     }
     
     /**

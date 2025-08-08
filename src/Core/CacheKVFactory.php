@@ -46,7 +46,13 @@ class CacheKVFactory
         
         // 设置 KeyManager 配置
         $keyManagerConfig = ConfigManager::getKeyManagerConfig();
-        KeyManager::injectGlobalConfig($keyManagerConfig);
+        // 传递完整配置给KeyManager，包含cache配置
+        $cacheConfigObject = ConfigManager::getGlobalCacheConfigObject();
+        $fullConfig = array(
+            'cache' => $cacheConfigObject->toArray(),
+            'key_manager' => $keyManagerConfig
+        );
+        KeyManager::injectGlobalConfig($fullConfig);
         
         // 初始化统计系统的Redis驱动
         if (self::$redisProvider !== null && is_callable(self::$redisProvider)) {
