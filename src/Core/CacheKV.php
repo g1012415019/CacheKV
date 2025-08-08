@@ -586,13 +586,16 @@ class CacheKV
      */
     public function deleteByPrefix($template, array $params = array())
     {
-        // 解析模板获取分组和键名
-        $parts = explode('.', $template, 2);
-        if (count($parts) !== 2) {
-            throw new \InvalidArgumentException("Invalid template format: {$template}. Expected format: 'group.key'");
+        // 使用KeyManager解析模板，避免重复代码
+        $keyManager = KeyManager::getInstance();
+        try {
+            // 通过创建一个键来验证模板格式并获取分组信息
+            $testKey = $keyManager->createKeyFromTemplate($template, $params);
+            $groupName = $testKey->getGroupName();
+            $keyName = $testKey->getKeyName();
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException("Invalid template format: {$template}. " . $e->getMessage());
         }
-        
-        list($groupName, $keyName) = $parts;
         
         // 获取键管理器配置
         $keyManagerConfig = ConfigManager::getKeyManagerConfig();
