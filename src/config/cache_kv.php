@@ -27,9 +27,6 @@ return array(
         'hot_key_threshold' => 100,                 // 热点键阈值（访问次数）
         'hot_key_extend_ttl' => 7200,               // 热点键延长TTL（秒，默认2小时）
         'hot_key_max_ttl' => 86400,                 // 热点键最大TTL（秒，默认24小时）
-        
-        // 标签配置
-        'tag_prefix' => 'tag:',                     // 标签前缀
     ),
     
     // ==================== KeyManager 配置 ====================

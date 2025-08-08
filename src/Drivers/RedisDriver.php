@@ -114,35 +114,6 @@ class RedisDriver implements DriverInterface
     }
 
     /**
-     * 批量删除缓存
-     */
-    public function deleteMultiple(array $keys)
-    {
-        if (empty($keys)) {
-            return true;
-        }
-        
-        $keyList = array_values($keys);
-        return $this->redis->del($keyList) > 0;
-    }
-
-    /**
-     * 获取集合成员
-     */
-    public function getSet($key)
-    {
-        return $this->redis->smembers($key);
-    }
-
-    /**
-     * 添加到集合
-     */
-    public function addToSet($key, $member)
-    {
-        return $this->redis->sadd($key, $member) > 0;
-    }
-
-    /**
      * 设置过期时间
      */
     public function expire($key, $ttl)
@@ -186,26 +157,5 @@ class RedisDriver implements DriverInterface
         } while ($iterator > 0);
         
         return $deletedCount;
-    }
-
-    /**
-     * 设置键值（仅当键不存在时）
-     * 
-     * @param string $key 缓存键
-     * @param mixed $value 缓存值
-     * @param int $ttl 过期时间（秒），0表示永不过期
-     * @return bool 成功返回true，键已存在返回false
-     */
-    public function setNx($key, $value, $ttl = 0)
-    {
-        $serializedValue = serialize($value);
-        
-        if ($ttl > 0) {
-            // 使用 SET 命令的 NX 和 EX 选项
-            return $this->redis->set($key, $serializedValue, array('nx', 'ex' => $ttl));
-        } else {
-            // 仅使用 NX 选项
-            return $this->redis->set($key, $serializedValue, array('nx'));
-        }
     }
 }

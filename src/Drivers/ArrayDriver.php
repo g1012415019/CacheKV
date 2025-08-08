@@ -17,6 +17,13 @@ class ArrayDriver implements DriverInterface
     private $data = array();
 
     /**
+     * 存储TTL信息的数组
+     * 
+     * @var array
+     */
+    private $ttls = array();
+
+    /**
      * 获取缓存值
      * 
      * @param string $key 缓存键
@@ -24,6 +31,12 @@ class ArrayDriver implements DriverInterface
      */
     public function get($key)
     {
+        // 检查是否过期
+        if ($this->isExpired($key)) {
+            $this->delete($key);
+            return null;
+        }
+        
         return isset($this->data[$key]) ? $this->data[$key] : null;
     }
 
@@ -38,6 +51,13 @@ class ArrayDriver implements DriverInterface
     public function set($key, $value, $ttl = 0)
     {
         $this->data[$key] = $value;
+        
+        if ($ttl > 0) {
+            $this->ttls[$key] = time() + $ttl;
+        } else {
+            unset($this->ttls[$key]);
+        }
+        
         return true;
     }
 
@@ -49,11 +69,10 @@ class ArrayDriver implements DriverInterface
      */
     public function delete($key)
     {
-        if (isset($this->data[$key])) {
-            unset($this->data[$key]);
-            return true;
-        }
-        return false;
+        $existed = isset($this->data[$key]);
+        unset($this->data[$key]);
+        unset($this->ttls[$key]);
+        return $existed;
     }
 
     /**
@@ -64,6 +83,11 @@ class ArrayDriver implements DriverInterface
      */
     public function exists($key)
     {
+        if ($this->isExpired($key)) {
+            $this->delete($key);
+            return false;
+        }
+        
         return isset($this->data[$key]);
     }
 
@@ -77,8 +101,9 @@ class ArrayDriver implements DriverInterface
     {
         $result = array();
         foreach ($keys as $key) {
-            if (isset($this->data[$key])) {
-                $result[$key] = $this->data[$key];
+            $value = $this->get($key);
+            if ($value !== null) {
+                $result[$key] = $value;
             }
         }
         return $result;
@@ -94,64 +119,112 @@ class ArrayDriver implements DriverInterface
     public function setMultiple(array $values, $ttl = 0)
     {
         foreach ($values as $key => $value) {
-            $this->data[$key] = $value;
+            $this->set($key, $value, $ttl);
         }
         return true;
     }
 
     /**
-     * 批量删除缓存
+     * 设置过期时间
      * 
-     * @param array $keys 缓存键数组
+     * @param string $key 缓存键
+     * @param int $ttl 过期时间（秒）
      * @return bool 成功返回true，失败返回false
      */
-    public function deleteMultiple(array $keys)
+    public function expire($key, $ttl)
     {
-        foreach ($keys as $key) {
-            if (isset($this->data[$key])) {
-                unset($this->data[$key]);
-            }
+        if (!isset($this->data[$key])) {
+            return false;
         }
+        
+        if ($ttl > 0) {
+            $this->ttls[$key] = time() + $ttl;
+        } else {
+            unset($this->ttls[$key]);
+        }
+        
         return true;
     }
 
     /**
-     * 清空所有缓存
+     * 获取键的剩余TTL
+     * 
+     * @param string $key 缓存键
+     * @return int TTL秒数，-1表示永不过期，-2表示键不存在
+     */
+    public function ttl($key)
+    {
+        if (!isset($this->data[$key])) {
+            return -2; // 键不存在
+        }
+        
+        if (!isset($this->ttls[$key])) {
+            return -1; // 永不过期
+        }
+        
+        $remaining = $this->ttls[$key] - time();
+        return $remaining > 0 ? $remaining : -2; // 已过期视为不存在
+    }
+
+    /**
+     * 按模式删除缓存键
+     * 
+     * @param string $pattern 匹配模式，支持通配符 * 和 ?
+     * @return int 删除的键数量
+     */
+    public function deleteByPattern($pattern)
+    {
+        $deletedCount = 0;
+        $regex = $this->patternToRegex($pattern);
+        
+        foreach (array_keys($this->data) as $key) {
+            if (preg_match($regex, $key)) {
+                $this->delete($key);
+                $deletedCount++;
+            }
+        }
+        
+        return $deletedCount;
+    }
+
+    /**
+     * 检查键是否过期
+     * 
+     * @param string $key 缓存键
+     * @return bool 过期返回true，未过期返回false
+     */
+    private function isExpired($key)
+    {
+        if (!isset($this->ttls[$key])) {
+            return false; // 没有TTL，永不过期
+        }
+        
+        return time() > $this->ttls[$key];
+    }
+
+    /**
+     * 将通配符模式转换为正则表达式
+     * 
+     * @param string $pattern 通配符模式
+     * @return string 正则表达式
+     */
+    private function patternToRegex($pattern)
+    {
+        $pattern = preg_quote($pattern, '/');
+        $pattern = str_replace('\*', '.*', $pattern);
+        $pattern = str_replace('\?', '.', $pattern);
+        return '/^' . $pattern . '$/';
+    }
+
+    /**
+     * 清空所有缓存（测试辅助方法）
      * 
      * @return bool 成功返回true，失败返回false
      */
     public function flush()
     {
         $this->data = array();
+        $this->ttls = array();
         return true;
-    }
-
-    /**
-     * 按前缀删除缓存
-     * 
-     * @param string $prefix 前缀
-     * @return bool 成功返回true，失败返回false
-     */
-    public function deleteByPrefix($prefix)
-    {
-        foreach ($this->data as $key => $value) {
-            if (strpos($key, $prefix) === 0) {
-                unset($this->data[$key]);
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 获取统计信息
-     * 
-     * @return array 统计信息数组
-     */
-    public function getStats()
-    {
-        return array(
-            'keys' => count($this->data),
-            'memory_usage' => memory_get_usage(),
-        );
     }
 }

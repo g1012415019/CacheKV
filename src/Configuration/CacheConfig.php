@@ -33,8 +33,7 @@ class CacheConfig
         'hot_key_auto_renewal' => true,
         'hot_key_threshold' => 100,
         'hot_key_extend_ttl' => 7200,
-        'hot_key_max_ttl' => 86400,
-        'tag_prefix' => 'tag:'
+        'hot_key_max_ttl' => 86400
     );
 
     /**
@@ -94,10 +93,6 @@ class CacheConfig
     public function getHotKeyThreshold($default = 100) { return $this->getValue('hot_key_threshold', $default, 'int'); }
     public function getHotKeyExtendTtl($default = 7200) { return $this->getValue('hot_key_extend_ttl', $default, 'int'); }
     public function getHotKeyMaxTtl($default = 86400) { return $this->getValue('hot_key_max_ttl', $default, 'int'); }
-
-    // ==================== 标签配置 ====================
-    
-    public function getTagPrefix($default = 'tag:') { return $this->getValue('tag_prefix', $default, 'string'); }
 
     // ==================== 通用方法 ====================
 

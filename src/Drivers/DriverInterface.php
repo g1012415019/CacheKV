@@ -59,31 +59,6 @@ interface DriverInterface
     public function setMultiple(array $items, $ttl = 0);
     
     /**
-     * 批量删除缓存
-     * 
-     * @param array $keys 缓存键数组
-     * @return bool
-     */
-    public function deleteMultiple(array $keys);
-    
-    /**
-     * 获取集合成员
-     * 
-     * @param string $key 集合键
-     * @return array
-     */
-    public function getSet($key);
-    
-    /**
-     * 添加到集合
-     * 
-     * @param string $key 集合键
-     * @param string $member 成员
-     * @return bool
-     */
-    public function addToSet($key, $member);
-    
-    /**
      * 设置过期时间
      * 
      * @param string $key 缓存键
@@ -99,16 +74,6 @@ interface DriverInterface
      * @return int TTL秒数，-1表示永不过期，-2表示键不存在
      */
     public function ttl($key);
-    
-    /**
-     * 设置键值（如果不存在）
-     * 
-     * @param string $key 缓存键
-     * @param string $value 缓存值
-     * @param int $ttl 过期时间（秒）
-     * @return bool
-     */
-    public function setNx($key, $value, $ttl = 0);
     
     /**
      * 按模式删除缓存键
