@@ -60,11 +60,6 @@ class ConfigManager
         try {
             // 使用配置实体类创建配置对象
             self::$config = CacheKVConfig::fromArray($configArray);
-            
-            // 注入配置到 KeyManager（确保单例模式下的配置同步）
-            if (isset($configArray['key_manager'])) {
-                \Asfop\CacheKV\Key\KeyManager::injectGlobalConfig($configArray['key_manager']);
-            }
         } catch (\InvalidArgumentException $e) {
             throw new CacheException("Invalid configuration structure in {$configFile}: " . $e->getMessage());
         }

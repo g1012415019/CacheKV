@@ -35,18 +35,38 @@ class KeyStats
     }
 
     /**
+     * 缓存的配置对象
+     * 
+     * @var \Asfop\CacheKV\Configuration\CacheConfig|null
+     */
+    private static $cacheConfig = null;
+
+    /**
+     * 获取缓存配置对象（带缓存）
+     * 
+     * @return \Asfop\CacheKV\Configuration\CacheConfig
+     */
+    private static function getCacheConfig()
+    {
+        if (self::$cacheConfig === null) {
+            try {
+                self::$cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getGlobalCacheConfigObject();
+            } catch (\Exception $e) {
+                // 如果获取配置失败，创建一个默认配置
+                self::$cacheConfig = \Asfop\CacheKV\Configuration\CacheConfig::fromArray(array());
+            }
+        }
+        return self::$cacheConfig;
+    }
+
+    /**
      * 获取统计数据Redis键前缀
      * 
      * @return string
      */
     private static function getStatsPrefix()
     {
-        try {
-            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getGlobalCacheConfigObject();
-            return $cacheConfig->getStatsPrefix();
-        } catch (Exception $e) {
-            return 'cachekv:stats:'; // 默认值
-        }
+        return self::getCacheConfig()->getStatsPrefix();
     }
 
     /**
@@ -56,12 +76,7 @@ class KeyStats
      */
     private static function getStatsTtl()
     {
-        try {
-            $cacheConfig = \Asfop\CacheKV\Core\ConfigManager::getGlobalCacheConfigObject();
-            return $cacheConfig->getStatsTtl();
-        } catch (Exception $e) {
-            return 604800; // 默认7天
-        }
+        return self::getCacheConfig()->getStatsTtl();
     }
 
     /**
@@ -78,6 +93,16 @@ class KeyStats
     public static function disable()
     {
         self::$enabled = false;
+    }
+
+    /**
+     * 重置统计状态（主要用于测试）
+     */
+    public static function reset()
+    {
+        self::$enabled = false;
+        self::$driver = null;
+        self::$cacheConfig = null;
     }
 
     /**

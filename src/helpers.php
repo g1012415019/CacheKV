@@ -66,14 +66,9 @@ if (!function_exists('kv_keys')) {
      */
     function kv_keys($template, array $paramsList)
     {
-        $keys = array();
-        $keyManager = KeyManager::getInstance();
-        foreach ($paramsList as $params) {
-            if (is_array($params)) {
-                $keys[] = $keyManager->createKeyFromTemplate($template, $params)->__toString();
-            }
-        }
-        return $keys;
+        // 使用 KeyManager 的批量方法，然后转换为字符串
+        $keyObjects = KeyManager::getInstance()->getKeys($template, $paramsList);
+        return array_keys($keyObjects); // 键名就是字符串形式
     }
 }
 

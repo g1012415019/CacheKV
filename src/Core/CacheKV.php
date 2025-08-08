@@ -6,6 +6,7 @@ use Asfop\CacheKV\Drivers\DriverInterface;
 use Asfop\CacheKV\Key\CacheKey;
 use Asfop\CacheKV\Key\KeyManager;
 use Asfop\CacheKV\Stats\KeyStats;
+use Asfop\CacheKV\Stats\StatsHelper;
 
 /**
  * CacheKV - 简洁版缓存操作核心类
@@ -67,13 +68,11 @@ class CacheKV
         $cached = $this->driver->get($key);
 
         if ($cached !== null) {
-            // 根据键配置决定是否记录统计
-            if ($cacheKey->getCacheConfig()->isEnableStats()) {
-                KeyStats::recordHit($key);
-                
-                // 检查并处理热点键自动续期
-                $this->checkAndRenewHotKey($cacheKey);
-            }
+            // 记录命中统计（如果启用）
+            StatsHelper::recordHitIfEnabled($cacheKey, $key);
+            
+            // 检查并处理热点键自动续期
+            $this->checkAndRenewHotKey($cacheKey);
 
             // 处理空值缓存
             if ($cached === self::NULL_VALUE) {
@@ -83,10 +82,8 @@ class CacheKV
             return $this->unserialize($cached);
         }
 
-        // 记录未命中统计
-        if ($cacheKey->getKeyConfig()->getCacheConfig()->isEnableStats()) {
-            KeyStats::recordMiss($key);
-        }
+        // 记录未命中统计（如果启用）
+        StatsHelper::recordMissIfEnabled($cacheKey, $key);
 
         // 缓存未命中，执行回调
         if ($callback === null) {
@@ -113,10 +110,8 @@ class CacheKV
     {
         $key = (string)$cacheKey;
 
-        // 根据键配置决定是否记录统计
-        if ($cacheKey->getCacheConfig()->isEnableStats()) {
-            KeyStats::recordSet($key);
-        }
+        // 记录设置统计（如果启用）
+        StatsHelper::recordSetIfEnabled($cacheKey, $key);
 
         // 获取TTL：优先使用传入的TTL，否则使用配置中的TTL
         $finalTtl = $this->getTtl($cacheKey, $ttl);
@@ -142,10 +137,8 @@ class CacheKV
     {
         $key = (string)$cacheKey;
 
-        // 根据键配置决定是否记录统计
-        if ($cacheKey->getCacheConfig()->isEnableStats()) {
-            KeyStats::recordDelete($key);
-        }
+        // 记录删除统计（如果启用）
+        StatsHelper::recordDeleteIfEnabled($cacheKey, $key);
 
         return $this->driver->delete($key);
     }
@@ -211,9 +204,7 @@ class CacheKV
             // 批量记录统计
             foreach ($groupItems as $keyString => $value) {
                 $cacheKey = $keyConfigs[$keyString];
-                if ($cacheKey->getCacheConfig()->isEnableStats()) {
-                    KeyStats::recordSet($keyString);
-                }
+                StatsHelper::recordSetIfEnabled($cacheKey, $keyString);
             }
         }
 
