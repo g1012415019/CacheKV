@@ -169,14 +169,13 @@ if (!function_exists('kv_clear_stats')) {
 
 if (!function_exists('kv_config')) {
     /**
-     * 获取配置信息
+     * 获取完整配置信息
      * 
-     * @param bool $details 是否包含详细信息
-     * @return array 配置信息
+     * @return array 完整的配置对象，包含cache和key_manager配置
      */
-    function kv_config($details = true)
+    function kv_config()
     {
-        return KeyManager::getInstance()->getAllKeysConfig($details);
+        return KeyManager::getInstance()->getAllKeysConfig(true);
     }
 }
 
@@ -290,6 +289,6 @@ if (!function_exists('cache_kv_get_all_keys_config')) {
      */
     function cache_kv_get_all_keys_config($includeDetails = true)
     {
-        return kv_config($includeDetails);
+        return KeyManager::getInstance()->getAllKeysConfig($includeDetails);
     }
 }
