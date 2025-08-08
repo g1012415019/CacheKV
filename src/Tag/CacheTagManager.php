@@ -47,6 +47,28 @@ class CacheTagManager
     }
 
     /**
+     * 获取标签键
+     * 
+     * @param string $tag 标签名
+     * @return string 标签键
+     */
+    private function getTagKey($tag)
+    {
+        return $this->tagPrefix . $tag;
+    }
+    
+    /**
+     * 获取键标签映射键
+     * 
+     * @param string $key 缓存键
+     * @return string 键标签映射键
+     */
+    private function getKeyTagsKey($key)
+    {
+        return $this->keyTagPrefix . $key;
+    }
+
+    /**
      * 为缓存键添加标签
      * 
      * @param string $key 缓存键
@@ -61,7 +83,7 @@ class CacheTagManager
         
         // 为每个标签添加键的关联
         foreach ($tags as $tag) {
-            $tagKey = $this->tagPrefix . $tag;
+            $tagKey = $this->getTagKey($tag);
             $this->driver->addToSet($tagKey, $key);
             
             if ($ttl > 0) {
@@ -70,7 +92,7 @@ class CacheTagManager
         }
         
         // 记录键的标签列表（用于删除键时清理标签）
-        $keyTagsKey = $this->keyTagPrefix . $key;
+        $keyTagsKey = $this->getKeyTagsKey($key);
         $existingTags = $this->driver->getSet($keyTagsKey);
         $allTags = array_unique(array_merge($existingTags, $tags));
         
@@ -93,7 +115,7 @@ class CacheTagManager
      */
     public function getKeysByTag($tag)
     {
-        $tagKey = $this->tagPrefix . $tag;
+        $tagKey = $this->getTagKey($tag);
         return $this->driver->getSet($tagKey);
     }
 
@@ -118,7 +140,7 @@ class CacheTagManager
         $this->cleanupTagAssociations($keys);
         
         // 删除标签集合
-        $tagKey = $this->tagPrefix . $tag;
+        $tagKey = $this->getTagKey($tag);
         $this->driver->delete($tagKey);
         
         return count($keys);
@@ -135,7 +157,7 @@ class CacheTagManager
         $clearedKeys = array($key);
         
         // 获取键的所有标签
-        $keyTagsKey = $this->keyTagPrefix . $key;
+        $keyTagsKey = $this->getKeyTagsKey($key);
         $tags = $this->driver->getSet($keyTagsKey);
         
         if (!empty($tags)) {
@@ -177,7 +199,7 @@ class CacheTagManager
      */
     public function getKeyTags($key)
     {
-        $keyTagsKey = $this->keyTagPrefix . $key;
+        $keyTagsKey = $this->getKeyTagsKey($key);
         return $this->driver->getSet($keyTagsKey);
     }
 
@@ -206,12 +228,12 @@ class CacheTagManager
             return;
         }
         
-        $keyTagsKey = $this->keyTagPrefix . $key;
+        $keyTagsKey = $this->getKeyTagsKey($key);
         $existingTags = $this->driver->getSet($keyTagsKey);
         
         // 从标签集合中移除键
         foreach ($tags as $tag) {
-            $tagKey = $this->tagPrefix . $tag;
+            $tagKey = $this->getTagKey($tag);
             // 这里需要实现从集合中移除特定成员的方法
             // 由于简化，我们重新构建集合
             $tagKeys = $this->driver->getSet($tagKey);
@@ -240,12 +262,12 @@ class CacheTagManager
     {
         foreach ($keys as $key) {
             // 获取键的标签
-            $keyTagsKey = $this->keyTagPrefix . $key;
+            $keyTagsKey = $this->getKeyTagsKey($key);
             $tags = $this->driver->getSet($keyTagsKey);
             
             // 从每个标签集合中移除这个键
             foreach ($tags as $tag) {
-                $tagKey = $this->tagPrefix . $tag;
+                $tagKey = $this->getTagKey($tag);
                 $tagKeys = $this->driver->getSet($tagKey);
                 $tagKeys = array_diff($tagKeys, array($key));
                 

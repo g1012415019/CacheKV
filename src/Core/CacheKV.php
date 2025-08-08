@@ -7,6 +7,7 @@ use Asfop\CacheKV\Key\CacheKey;
 use Asfop\CacheKV\Key\KeyManager;
 use Asfop\CacheKV\Stats\KeyStats;
 use Asfop\CacheKV\Stats\StatsHelper;
+use Asfop\CacheKV\Core\CacheConfigHelper;
 
 /**
  * CacheKV - 简洁版缓存操作核心类
@@ -364,14 +365,7 @@ class CacheKV
      */
     private function getTtl($cacheKey, $customTtl = null)
     {
-        // 优先使用传入的TTL
-        if ($customTtl !== null) {
-            return $customTtl;
-        }
-
-        // 直接使用配置对象中的TTL
-        $cacheConfig = $cacheKey->getCacheConfig();
-        return $cacheConfig !== null ? $cacheConfig->getTtl() : 3600;
+        return CacheConfigHelper::getTtl($cacheKey, $customTtl);
     }
 
     /**
@@ -382,8 +376,7 @@ class CacheKV
      */
     private function shouldCacheNull($cacheKey)
     {
-        $cacheConfig = $cacheKey->getCacheConfig();
-        return $cacheConfig !== null ? $cacheConfig->isEnableNullCache() : false;
+        return CacheConfigHelper::shouldCacheNull($cacheKey);
     }
 
     /**
@@ -394,8 +387,7 @@ class CacheKV
      */
     private function getNullCacheTtl($cacheKey)
     {
-        $cacheConfig = $cacheKey->getCacheConfig();
-        return $cacheConfig !== null ? $cacheConfig->getNullCacheTtl() : 300;
+        return CacheConfigHelper::getNullCacheTtl($cacheKey);
     }
 
     /**
@@ -454,17 +446,15 @@ class CacheKV
         $renewalItems = array(); // 需要续期的键，按TTL分组
 
         foreach ($cacheKeys as $cacheKey) {
-            $cacheConfig = $cacheKey->getCacheConfig();
-            
             // 检查是否启用热点键自动续期
-            if (!$cacheConfig || !$cacheConfig->isHotKeyAutoRenewal()) {
+            if (!CacheConfigHelper::isHotKeyAutoRenewal($cacheKey)) {
                 continue;
             }
 
             $key = (string)$cacheKey;
             
             // 检查是否为热点键
-            $threshold = $cacheConfig->getHotKeyThreshold();
+            $threshold = CacheConfigHelper::getHotKeyThreshold($cacheKey);
             $frequency = KeyStats::getKeyFrequency($key);
             
             if ($frequency < $threshold) {
@@ -478,8 +468,8 @@ class CacheKV
             }
 
             // 计算新的TTL
-            $extendTtl = $cacheConfig->getHotKeyExtendTtl();
-            $maxTtl = $cacheConfig->getHotKeyMaxTtl();
+            $extendTtl = CacheConfigHelper::getHotKeyExtendTtl($cacheKey);
+            $maxTtl = CacheConfigHelper::getHotKeyMaxTtl($cacheKey);
             
             $newTtl = min($extendTtl, $maxTtl);
             $newTtl = max($newTtl, $currentTtl);
@@ -511,17 +501,15 @@ class CacheKV
      */
     private function checkAndRenewHotKey($cacheKey)
     {
-        $cacheConfig = $cacheKey->getCacheConfig();
-        
         // 检查是否启用热点键自动续期
-        if (!$cacheConfig || !$cacheConfig->isHotKeyAutoRenewal()) {
+        if (!CacheConfigHelper::isHotKeyAutoRenewal($cacheKey)) {
             return false;
         }
 
         $key = (string)$cacheKey;
         
         // 检查是否为热点键
-        $threshold = $cacheConfig->getHotKeyThreshold();
+        $threshold = CacheConfigHelper::getHotKeyThreshold($cacheKey);
         $frequency = KeyStats::getKeyFrequency($key);
         
         if ($frequency < $threshold) {
@@ -540,8 +528,8 @@ class CacheKV
         }
 
         // 计算新的TTL（简化逻辑）
-        $extendTtl = $cacheConfig->getHotKeyExtendTtl();
-        $maxTtl = $cacheConfig->getHotKeyMaxTtl();
+        $extendTtl = CacheConfigHelper::getHotKeyExtendTtl($cacheKey);
+        $maxTtl = CacheConfigHelper::getHotKeyMaxTtl($cacheKey);
         
         // 使用延长TTL，但不超过最大TTL，也不小于当前TTL
         $newTtl = min($extendTtl, $maxTtl);
