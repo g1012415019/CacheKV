@@ -269,6 +269,20 @@ class KeyManager
     }
 
     /**
+     * 获取所有键配置信息
+     * 
+     * @return array 所有分组和键的配置信息
+     */
+    public function getAllKeysConfig()
+    {
+        if ($this->config === null) {
+            return array();
+        }
+        
+        return $this->config->toArray()['groups'];
+    }
+
+    /**
      * 重置实例（测试用）
      */
     public static function reset()
