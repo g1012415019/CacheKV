@@ -188,16 +188,7 @@ class KeyManager
      */
     public function createKeyFromTemplate($template, array $params = array())
     {
-        // 解析模板格式
-        $parts = explode('.', $template, 2);
-        if (count($parts) !== 2) {
-            throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
-        }
-        
-        $groupName = $parts[0];
-        $keyName = $parts[1];
-        
-        // 委托给现有的 createKey 方法
+        list($groupName, $keyName) = $this->parseTemplate($template);
         return $this->createKey($groupName, $keyName, $params);
     }
 
@@ -215,14 +206,7 @@ class KeyManager
             return array();
         }
         
-        // 解析模板（复用模板解析逻辑）
-        $parts = explode('.', $template, 2);
-        if (count($parts) !== 2) {
-            throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
-        }
-        
-        $groupName = $parts[0];
-        $keyName = $parts[1];
+        list($groupName, $keyName) = $this->parseTemplate($template);
         
         $result = array();
         
@@ -303,7 +287,7 @@ class KeyManager
         foreach ($config as $groupName => $groupConfig) {
             if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
                 foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                    $templates[] = $groupName . '.' . $keyName;
+                    $templates[] = $this->buildFullTemplate($groupName, $keyName);
                 }
             }
         }
@@ -348,17 +332,11 @@ class KeyManager
     {
         $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
         
-        // 提取模板中的参数
-        $parameters = array();
-        if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
-            $parameters = $matches[1];
-        }
-        
         return array(
             'template' => $template,
-            'full_template' => $groupName . '.' . $keyName,
+            'full_template' => $this->buildFullTemplate($groupName, $keyName),
             'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
-            'parameters' => $parameters
+            'parameters' => $this->extractTemplateParameters($template)
         );
     }
 
@@ -369,5 +347,49 @@ class KeyManager
     {
         self::$instance = null;
         self::$globalConfig = null;
+    }
+    
+    /**
+     * 解析模板格式，提取分组名和键名
+     * 
+     * @param string $template 模板字符串，格式：'group.key'
+     * @return array [groupName, keyName]
+     * @throws CacheException 当模板格式无效时
+     */
+    private function parseTemplate($template)
+    {
+        $parts = explode('.', $template, 2);
+        if (count($parts) !== 2) {
+            throw new CacheException("Invalid template format: '{$template}'. Expected 'group.key'");
+        }
+        
+        return array($parts[0], $parts[1]);
+    }
+    
+    /**
+     * 从模板字符串中提取参数列表
+     * 
+     * @param string $template 模板字符串，如 'profile:{id}:{type}'
+     * @return array 参数列表，如 ['id', 'type']
+     */
+    private function extractTemplateParameters($template)
+    {
+        $parameters = array();
+        if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
+            $parameters = $matches[1];
+        }
+        return $parameters;
+    }
+    
+    /**
+     * 构建完整模板名称
+     * 
+     * @param string $groupName 分组名
+     * @param string $keyName 键名
+     * @return string 完整模板名称，如 'user.profile'
+     */
+    private function buildFullTemplate($groupName, $keyName)
+    {
+        return $groupName . '.' . $keyName;
     }
 }
