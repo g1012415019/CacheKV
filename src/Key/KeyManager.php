@@ -4,6 +4,8 @@ namespace Asfop\CacheKV\Key;
 
 use Asfop\CacheKV\Exception\CacheException;
 use Asfop\CacheKV\Configuration\KeyManagerConfig;
+use Asfop\CacheKV\Configuration\CacheKVConfig;
+use Asfop\CacheKV\Configuration\CacheConfig;
 
 /**
  * 缓存键管理器 
@@ -88,15 +90,14 @@ class KeyManager
     }
 
     /**
-     * 生成完整的缓存键字符串
+     * 获取分组和键配置
      * 
      * @param string $groupName 分组名称
      * @param string $keyName 键名称
-     * @param array $params 参数数组
-     * @return string 完整的缓存键
+     * @return array [groupConfig, keyConfig]
      * @throws CacheException
      */
-    public function makeKey($groupName, $keyName, array $params = array())
+    private function getConfigs($groupName, $keyName)
     {
         // 获取分组配置
         $groupConfig = $this->config->getGroup($groupName);
@@ -109,6 +110,22 @@ class KeyManager
         if ($keyConfig === null) {
             throw new CacheException("Key '{$keyName}' not found in group '{$groupName}'");
         }
+        
+        return array($groupConfig, $keyConfig);
+    }
+
+    /**
+     * 生成完整的缓存键字符串
+     * 
+     * @param string $groupName 分组名称
+     * @param string $keyName 键名称
+     * @param array $params 参数数组
+     * @return string 完整的缓存键
+     * @throws CacheException
+     */
+    public function makeKey($groupName, $keyName, array $params = array())
+    {
+        list($groupConfig, $keyConfig) = $this->getConfigs($groupName, $keyName);
         
         // 替换模板参数
         $template = $keyConfig->getTemplate();
@@ -132,14 +149,7 @@ class KeyManager
      */
     public function createKey($groupName, $keyName, array $params = array())
     {
-        // 获取分组配置
-        $groupConfig = $this->config->getGroup($groupName);
-        if ($groupConfig === null) {
-            throw new CacheException("Group '{$groupName}' not found");
-        }
-        
-        // 获取键配置
-        $keyConfig = $groupConfig->getKey($keyName);
+        list($groupConfig, $keyConfig) = $this->getConfigs($groupName, $keyName);
         
         // 生成完整键
         $fullKey = $this->makeKey($groupName, $keyName, $params);
@@ -211,8 +221,6 @@ class KeyManager
             return array();
         }
         
-        list($groupName, $keyName) = $this->parseTemplate($template);
-        
         $result = array();
         
         foreach ($paramsList as $params) {
@@ -221,7 +229,7 @@ class KeyManager
             }
             
             try {
-                $cacheKey = $this->createKey($groupName, $keyName, $params);
+                $cacheKey = $this->createKeyFromTemplate($template, $params);
                 $keyString = (string)$cacheKey;
                 $result[$keyString] = $cacheKey;
             } catch (CacheException $e) {
@@ -260,106 +268,33 @@ class KeyManager
     /**
      * 获取所有键配置信息
      * 
-     * @param bool $includeDetails 是否包含详细配置信息（默认true）
-     * @return array 完整的配置信息，包含cache和key_manager配置
+     * @return CacheKVConfig 完整的配置对象，包含cache和key_manager配置
      */
-    public function getAllKeysConfig($includeDetails = true)
+    public function getAllKeysConfig()
     {
         if ($this->config === null) {
-            return array();
+            // 返回空配置对象
+            $emptyCacheConfig = CacheConfig::fromArray(array());
+            $emptyKeyManagerConfig = KeyManagerConfig::fromArray(array(), array());
+            return new CacheKVConfig($emptyCacheConfig, $emptyKeyManagerConfig);
         }
         
         // 获取key_manager配置
         $keyManagerConfig = $this->config->toArray();
-        $groupsConfig = isset($keyManagerConfig['groups']) ? $keyManagerConfig['groups'] : array();
         
-        if (!$includeDetails) {
-            // 简化版本：只返回模板列表
-            return $this->extractTemplateList($groupsConfig);
-        }
-        
-        // 详细版本：返回完整配置对象
         // 从全局配置获取cache配置
         $cacheConfig = array();
         if (self::$globalConfig !== null && isset(self::$globalConfig['cache'])) {
             $cacheConfig = self::$globalConfig['cache'];
         }
         
-        return array(
+        $configData = array(
             'cache' => $cacheConfig,
-            'key_manager' => array(
-                'app_prefix' => isset($keyManagerConfig['app_prefix']) ? $keyManagerConfig['app_prefix'] : '',
-                'separator' => isset($keyManagerConfig['separator']) ? $keyManagerConfig['separator'] : ':',
-                'groups' => $this->buildDetailedConfig($groupsConfig)
-            )
+            'key_manager' => $keyManagerConfig
         );
-    }
-    
-    /**
-     * 提取模板列表（简化版本）
-     * 
-     * @param array $config 原始配置数组
-     * @return array 模板列表
-     */
-    private function extractTemplateList(array $config)
-    {
-        $templates = array();
-        foreach ($config as $groupName => $groupConfig) {
-            if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
-                foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                    $templates[] = $this->buildFullTemplate($groupName, $keyName);
-                }
-            }
-        }
-        return $templates;
-    }
-    
-    /**
-     * 构建详细配置信息
-     * 
-     * @param array $config 原始配置数组
-     * @return array 详细配置信息
-     */
-    private function buildDetailedConfig(array $config)
-    {
-        $detailedConfig = array();
-        foreach ($config as $groupName => $groupConfig) {
-            $detailedConfig[$groupName] = array(
-                'prefix' => isset($groupConfig['prefix']) ? $groupConfig['prefix'] : $groupName,
-                'version' => isset($groupConfig['version']) ? $groupConfig['version'] : 'v1',
-                'cache_config' => isset($groupConfig['cache']) ? $groupConfig['cache'] : null,
-                'keys' => array()
-            );
-            
-            if (isset($groupConfig['keys']) && is_array($groupConfig['keys'])) {
-                foreach ($groupConfig['keys'] as $keyName => $keyConfig) {
-                    $detailedConfig[$groupName]['keys'][$keyName] = $this->buildKeyConfig($groupName, $keyName, $keyConfig);
-                }
-            }
-        }
-        return $detailedConfig;
-    }
-    
-    /**
-     * 构建单个键的配置信息
-     * 
-     * @param string $groupName 分组名
-     * @param string $keyName 键名
-     * @param array $keyConfig 键配置
-     * @return array 键的详细配置
-     */
-    private function buildKeyConfig($groupName, $keyName, array $keyConfig)
-    {
-        $template = isset($keyConfig['template']) ? $keyConfig['template'] : $keyName;
         
-        return array(
-            'template' => $template,
-            'full_template' => $this->buildFullTemplate($groupName, $keyName),
-            'cache_config' => isset($keyConfig['cache']) ? $keyConfig['cache'] : null,
-            'parameters' => $this->extractTemplateParameters($template)
-        );
+        return CacheKVConfig::fromArray($configData);
     }
-
     /**
      * 重置实例（测试用）
      */
@@ -384,32 +319,5 @@ class KeyManager
         }
         
         return array($parts[0], $parts[1]);
-    }
-    
-    /**
-     * 从模板字符串中提取参数列表
-     * 
-     * @param string $template 模板字符串，如 'profile:{id}:{type}'
-     * @return array 参数列表，如 ['id', 'type']
-     */
-    private function extractTemplateParameters($template)
-    {
-        $parameters = array();
-        if (preg_match_all('/\{([^}]+)\}/', $template, $matches)) {
-            $parameters = $matches[1];
-        }
-        return $parameters;
-    }
-    
-    /**
-     * 构建完整模板名称
-     * 
-     * @param string $groupName 分组名
-     * @param string $keyName 键名
-     * @return string 完整模板名称，如 'user.profile'
-     */
-    private function buildFullTemplate($groupName, $keyName)
-    {
-        return $groupName . '.' . $keyName;
     }
 }

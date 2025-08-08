@@ -1,10 +1,10 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use Asfop\CacheKV\CacheKV;
-use Asfop\CacheKV\CacheKVFactory;
-use Asfop\CacheKV\Cache\Drivers\ArrayDriver;
-use Asfop\CacheKV\Cache\KeyManager;
+use Asfop\CacheKV\Core\CacheKV;
+use Asfop\CacheKV\Core\CacheKVFactory;
+use Asfop\CacheKV\Drivers\ArrayDriver;
+use Asfop\CacheKV\Key\KeyManager;
 
 class CacheKVTest extends TestCase
 {
@@ -12,51 +12,45 @@ class CacheKVTest extends TestCase
     private $keyManager;
     
     // 测试用的模板常量（仅用于测试）
-    const TEST_TEMPLATE_A = 'template_a';
-    const TEST_TEMPLATE_B = 'template_b';
-    const TEST_TEMPLATE_C = 'template_c';
+    const TEST_TEMPLATE_A = 'template.template_a';
+    const TEST_TEMPLATE_B = 'template.template_b';
+    const TEST_TEMPLATE_C = 'template.template_c';
     
     protected function setUp(): void
     {
-        // 使用通用的测试模板
-        $this->keyManager = new KeyManager([
-            'app_prefix' => 'test',
-            'env_prefix' => 'phpunit',
-            'version' => 'v1',
-            'templates' => [
-                self::TEST_TEMPLATE_A => 'tmpl_a:{id}',
-                self::TEST_TEMPLATE_B => 'tmpl_b:{id}',
-                self::TEST_TEMPLATE_C => 'tmpl_c:{id}',
+        // 重置 KeyManager 实例
+        KeyManager::reset();
+        
+        // 注入全局配置
+        KeyManager::injectGlobalConfig([
+            'key_manager' => [
+                'app_prefix' => 'test',
+                'separator' => ':',
+                'groups' => [
+                    'template' => [
+                        'prefix' => 'tmpl',
+                        'version' => 'v1',
+                        'keys' => [
+                            'template_a' => ['template' => 'tmpl_a:{id}'],
+                            'template_b' => ['template' => 'tmpl_b:{id}'],
+                            'template_c' => ['template' => 'tmpl_c:{id}'],
+                        ]
+                    ]
+                ]
             ]
         ]);
         
-        $this->cache = CacheKVFactory::create(
-            new ArrayDriver(),
-            3600,
-            $this->keyManager
-        );
+        // 获取 KeyManager 实例
+        $this->keyManager = KeyManager::getInstance();
         
-        // 设置默认配置用于测试辅助函数
-        CacheKVFactory::setDefaultConfig([
-            'driver' => new ArrayDriver(),
-            'ttl' => 3600,
-            'app_prefix' => 'test',
-            'env_prefix' => 'helper',
-            'version' => 'v1',
-            'templates' => [
-                self::TEST_TEMPLATE_A => 'tmpl_a:{id}',
-                self::TEST_TEMPLATE_B => 'tmpl_b:{id}',
-                self::TEST_TEMPLATE_C => 'tmpl_c:{id}',
-            ]
-        ]);
-        
-        // 清空缓存
-        $this->cache->flush();
+        // 简化测试，不创建完整的CacheKV实例
+        $this->cache = null;
     }
     
     protected function tearDown(): void
     {
-        $this->cache->flush();
+        // 重置 KeyManager
+        KeyManager::reset();
     }
     
     // ========== 工厂方法测试 ==========
@@ -407,17 +401,17 @@ class CacheKVTest extends TestCase
     
     public function testKeyGeneration()
     {
-        $key = $this->keyManager->make(self::TEST_TEMPLATE_A, ['id' => 123]);
-        $this->assertEquals('test:phpunit:v1:tmpl_a:123', $key);
+        $key = $this->keyManager->makeKey('template', 'template_a', ['id' => 123]);
+        $this->assertEquals('test:tmpl:v1:tmpl_a:123', $key);
         
-        $key2 = $this->keyManager->make(self::TEST_TEMPLATE_C, ['id' => 'abc123']);
-        $this->assertEquals('test:phpunit:v1:tmpl_c:abc123', $key2);
+        $key2 = $this->keyManager->makeKey('template', 'template_c', ['id' => 'abc123']);
+        $this->assertEquals('test:tmpl:v1:tmpl_c:abc123', $key2);
     }
     
     public function testMakeKey()
     {
         $key = $this->cache->makeKey(self::TEST_TEMPLATE_A, ['id' => 456]);
-        $this->assertEquals('test:phpunit:v1:tmpl_a:456', $key);
+        $this->assertEquals('test:tmpl:v1:tmpl_a:456', $key);
         
         $keyWithoutPrefix = $this->cache->makeKey(self::TEST_TEMPLATE_A, ['id' => 456], false);
         $this->assertEquals('tmpl_a:456', $keyWithoutPrefix);

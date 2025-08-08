@@ -100,7 +100,7 @@ $hotKeys = kv_hot_keys(10);
 
 ## ✨ 简洁API设计
 
-CacheKV 提供了简洁易用的函数名，同时保持向后兼容：
+CacheKV 提供了简洁易用的函数API：
 
 ### 🔧 核心操作
 ```php
@@ -130,17 +130,7 @@ kv_clear_stats()        // 清空统计
 
 ### ⚙️ 配置管理
 ```php
-kv_config()     // 获取完整配置信息
-```
-
-### 🔄 向后兼容
-所有原有函数名仍然可用：
-```php
-// 新版本（推荐）
-$user = kv_get('user.profile', ['id' => 123], $callback);
-
-// 旧版本（仍然支持）
-$user = cache_kv_get('user.profile', ['id' => 123], $callback);
+kv_config()     // 获取配置对象（可转换为数组）
 ```
 
 ## 📚 文档
