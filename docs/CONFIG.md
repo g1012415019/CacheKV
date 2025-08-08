@@ -252,8 +252,8 @@ CacheKVFactory::configure(
 );
 
 // 自动加载所有分组配置
-$user = cache_kv_get('user.profile', ['id' => 123], $callback);
-$goods = cache_kv_get('goods.info', ['id' => 456], $callback);
+$user = kv_get('user.profile', ['id' => 123], $callback);
+$goods = kv_get('goods.info', ['id' => 456], $callback);
 ```
 
 ## 环境配置示例

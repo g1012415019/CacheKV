@@ -1,245 +1,295 @@
 # 统计功能
 
-CacheKV 提供完整的统计功能，帮助监控缓存性能和优化策略。
+CacheKV 提供了强大的统计功能，帮助你监控缓存性能和识别热点数据。
 
-## 基础统计
+## 📊 统计功能概览
 
-### 获取统计信息
+- **命中率统计**：实时监控缓存命中率
+- **热点键识别**：自动识别访问频繁的缓存键
+- **操作计数**：统计各种缓存操作的次数
+- **性能监控**：提供详细的性能指标
+
+## 🔧 启用统计功能
+
+### 全局启用
+
+在配置文件中启用统计功能：
 
 ```php
-$stats = cache_kv_get_stats();
+<?php
+return [
+    'cache' => [
+        'enable_stats' => true,           // 启用全局统计
+        'stats_prefix' => 'cachekv:stats:', // 统计数据前缀
+        'stats_ttl' => 604800,           // 统计数据TTL（7天）
+    ]
+];
+```
+
+### 按组启用
+
+可以为特定组启用或禁用统计：
+
+```php
+'groups' => [
+    'user' => [
+        'cache' => [
+            'enable_stats' => true,      // 用户组启用统计
+        ]
+    ],
+    'temp' => [
+        'cache' => [
+            'enable_stats' => false,     // 临时数据不统计
+        ]
+    ]
+]
+```
+
+## 📈 获取统计信息
+
+### kv_stats() - 获取全局统计
+
+```php
+$stats = kv_stats();
 print_r($stats);
 ```
 
-**输出：**
+**返回数据格式：**
 ```php
-Array
-(
-    [hits] => 850                   // 缓存命中次数
-    [misses] => 150                 // 缓存未命中次数
-    [total_requests] => 1000        // 总请求次数
-    [hit_rate] => 85%               // 命中率
-    [sets] => 200                   // 缓存设置次数
-    [deletes] => 10                 // 缓存删除次数
-    [enabled] => 1                  // 统计功能是否启用
-)
+[
+    'hits' => 1500,                    // 命中次数
+    'misses' => 300,                   // 未命中次数
+    'hit_rate' => '83.33%',            // 命中率
+    'total_requests' => 1800,          // 总请求数
+    'sets' => 350,                     // 设置操作次数
+    'deletes' => 50                    // 删除操作次数
+]
 ```
 
-## 热点键检测
-
-### 获取热点键
+### kv_hot_keys() - 获取热点键
 
 ```php
-$hotKeys = cache_kv_get_hot_keys(10);
-print_r($hotKeys);
-```
+// 获取前10个热点键
+$hotKeys = kv_hot_keys(10);
 
-**输出：**
-```php
-Array
-(
-    [myapp:user:v1:profile:123] => 45    // 键名 => 访问次数
-    [myapp:user:v1:profile:456] => 32
-    [myapp:user:v1:settings:123] => 28
-    // ... 更多热点键
-)
-```
-
-### 热点键判定
-
-热点键基于访问频率判定：
-
-```php
-'cache' => array(
-    'hot_key_threshold' => 100,     // 访问100次以上算热点键
-),
-```
-
-## 热点键自动续期
-
-### 工作原理
-
-当键访问次数达到阈值时，系统自动延长其缓存时间。
-
-```php
-'cache' => array(
-    'hot_key_auto_renewal' => true,         // 启用自动续期
-    'hot_key_threshold' => 100,             // 热点键阈值
-    'hot_key_extend_ttl' => 7200,           // 延长到2小时
-    'hot_key_max_ttl' => 86400,             // 最大24小时
-),
-```
-
-### 续期条件
-
-1. 启用自动续期功能
-2. 访问次数 ≥ 热点阈值
-3. 缓存命中时触发
-4. 新TTL > 当前TTL
-
-## 实际应用
-
-### 性能监控
-
-```php
-function monitorCachePerformance() {
-    $stats = cache_kv_get_stats();
-    $hitRate = floatval(str_replace('%', '', $stats['hit_rate']));
-    
-    if ($hitRate < 80) {
-        logAlert("缓存命中率过低: {$stats['hit_rate']}");
-        
-        // 分析热点键
-        $hotKeys = cache_kv_get_hot_keys(5);
-        foreach ($hotKeys as $key => $count) {
-            if ($count > 100) {
-                logWarning("高频访问键: {$key} ({$count}次)");
-            }
-        }
-    }
-    
-    return $stats;
+foreach ($hotKeys as $key => $count) {
+    echo "热点键: {$key} (访问 {$count} 次)\n";
 }
 ```
 
-### 优化建议
+**返回数据格式：**
+```php
+[
+    'app:user:v1:123' => 45,           // 键名 => 访问次数
+    'app:user:v1:456' => 32,
+    'app:product:v1:789' => 28,
+    'app:config:v1:settings' => 20
+]
+```
+
+### kv_clear_stats() - 清空统计数据
+
+```php
+$success = kv_clear_stats();
+if ($success) {
+    echo "统计数据已清空\n";
+}
+```
+
+## 🔥 热点键自动续期
+
+CacheKV 可以自动识别热点键并延长其缓存时间。
+
+### 配置热点键自动续期
+
+```php
+'cache' => [
+    'hot_key_auto_renewal' => true,     // 启用热点键自动续期
+    'hot_key_threshold' => 100,         // 热点键阈值（访问次数）
+    'hot_key_extend_ttl' => 7200,       // 延长的TTL（2小时）
+    'hot_key_max_ttl' => 86400,         // 最大TTL（24小时）
+]
+```
+
+### 工作原理
+
+1. **检测热点**：当键的访问次数超过阈值时，标记为热点键
+2. **自动续期**：热点键在被访问时自动延长TTL
+3. **限制最大值**：续期不会超过配置的最大TTL
+
+## 📊 实际应用示例
+
+### 性能监控脚本
+
+```php
+<?php
+// 定期检查缓存性能
+function checkCachePerformance() {
+    $stats = kv_stats();
+    
+    echo "=== 缓存性能报告 ===\n";
+    echo "命中率: {$stats['hit_rate']}\n";
+    echo "总请求: {$stats['total_requests']}\n";
+    echo "命中次数: {$stats['hits']}\n";
+    echo "未命中次数: {$stats['misses']}\n";
+    
+    // 检查命中率是否过低
+    $hitRate = floatval(str_replace('%', '', $stats['hit_rate']));
+    if ($hitRate < 80) {
+        echo "⚠️ 警告: 命中率过低 ({$stats['hit_rate']})\n";
+    }
+    
+    // 显示热点键
+    echo "\n=== 热点键 TOP 10 ===\n";
+    $hotKeys = kv_hot_keys(10);
+    foreach ($hotKeys as $key => $count) {
+        echo "{$key}: {$count} 次\n";
+        
+        // 检查是否有超热点键
+        if ($count > 1000) {
+            echo "🔥 超热点键: {$key}\n";
+        }
+    }
+}
+
+// 每小时执行一次
+checkCachePerformance();
+```
+
+### 缓存优化建议
 
 ```php
 function getCacheOptimizationSuggestions() {
-    $stats = cache_kv_get_stats();
-    $hotKeys = cache_kv_get_hot_keys(20);
+    $stats = kv_stats();
+    $hotKeys = kv_hot_keys(20);
     $suggestions = [];
     
+    // 分析命中率
     $hitRate = floatval(str_replace('%', '', $stats['hit_rate']));
-    
-    if ($hitRate < 60) {
-        $suggestions[] = "命中率过低({$stats['hit_rate']})，检查缓存键设计";
-    } elseif ($hitRate < 80) {
-        $suggestions[] = "命中率偏低({$stats['hit_rate']})，考虑启用热点键自动续期";
+    if ($hitRate < 70) {
+        $suggestions[] = "命中率过低({$stats['hit_rate']})，建议检查缓存策略";
+    } elseif ($hitRate > 95) {
+        $suggestions[] = "命中率很高({$stats['hit_rate']})，缓存策略良好";
     }
     
-    $highTrafficKeys = array_filter($hotKeys, function($count) {
-        return $count > 1000;
+    // 分析热点键
+    $superHotKeys = array_filter($hotKeys, function($count) {
+        return $count > 500;
     });
     
-    if (count($highTrafficKeys) > 0) {
-        $suggestions[] = "检测到" . count($highTrafficKeys) . "个高频访问键，确认自动续期已启用";
+    if (!empty($superHotKeys)) {
+        $suggestions[] = "发现 " . count($superHotKeys) . " 个超热点键，建议增加TTL";
+    }
+    
+    // 分析请求量
+    if ($stats['total_requests'] > 10000) {
+        $suggestions[] = "请求量较大({$stats['total_requests']})，建议启用热点键自动续期";
     }
     
     return $suggestions;
 }
-```
 
-### 定期报告
-
-```php
-function generateCacheReport() {
-    $stats = cache_kv_get_stats();
-    $hotKeys = cache_kv_get_hot_keys(10);
-    
-    $report = [
-        'date' => date('Y-m-d'),
-        'hit_rate' => $stats['hit_rate'],
-        'total_requests' => $stats['total_requests'],
-        'top_hot_keys' => array_slice($hotKeys, 0, 5),
-        'performance_level' => getPerformanceLevel($stats['hit_rate'])
-    ];
-    
-    file_put_contents(
-        '/var/log/cache_report_' . date('Y-m-d') . '.json', 
-        json_encode($report, JSON_PRETTY_PRINT)
-    );
-    
-    return $report;
-}
-
-function getPerformanceLevel($hitRate) {
-    $rate = floatval(str_replace('%', '', $hitRate));
-    
-    if ($rate >= 90) return 'excellent';
-    if ($rate >= 80) return 'good';
-    if ($rate >= 70) return 'fair';
-    return 'poor';
+// 获取优化建议
+$suggestions = getCacheOptimizationSuggestions();
+foreach ($suggestions as $suggestion) {
+    echo "💡 " . $suggestion . "\n";
 }
 ```
 
-## 统计配置
-
-### 基础配置
+### 实时监控仪表板
 
 ```php
-'cache' => array(
-    'enable_stats' => true,         // 启用统计（默认：true）
-),
-```
-
-### 热点键配置
-
-```php
-'cache' => array(
-    'hot_key_threshold' => 100,             // 热点键阈值
-    'hot_key_auto_renewal' => true,         // 启用自动续期
-    'hot_key_extend_ttl' => 7200,           // 延长TTL
-    'hot_key_max_ttl' => 86400,             // 最大TTL
-),
-```
-
-### 分组级配置
-
-```php
-'key_manager' => array(
-    'groups' => array(
-        'user' => array(
-            'cache' => array(
-                'hot_key_threshold' => 50,      // 用户数据阈值更低
-            ),
-        ),
-        'system' => array(
-            'cache' => array(
-                'hot_key_auto_renewal' => false, // 系统配置不自动续期
-            ),
-        ),
-    ),
-),
-```
-
-## 性能影响
-
-### 开销说明
-
-- **内存开销**：每个键约100-200字节
-- **CPU开销**：每次操作增加约0.1ms
-- **存储**：统计数据存储在内存中
-
-### 优化建议
-
-1. **生产环境**：建议启用统计，便于监控
-2. **高并发场景**：可考虑采样统计
-3. **测试环境**：可禁用统计减少干扰
-
-## 最佳实践
-
-### 监控指标
-
-- **命中率**：≥80% 为良好，≥90% 为优秀
-- **热点键数量**：过多可能需要优化缓存策略
-- **未命中率**：突然增加可能表示数据被清除
-
-### 告警设置
-
-```php
-// 设置合理的告警阈值
-if ($hitRate < 70) {
-    sendAlert("缓存命中率告警");
+class CacheMonitor 
+{
+    public function getDashboardData() 
+    {
+        $stats = kv_stats();
+        $hotKeys = kv_hot_keys(10);
+        
+        return [
+            'overview' => [
+                'hit_rate' => $stats['hit_rate'],
+                'total_requests' => $stats['total_requests'],
+                'status' => $this->getHealthStatus($stats)
+            ],
+            'hot_keys' => $hotKeys,
+            'recommendations' => $this->getRecommendations($stats, $hotKeys)
+        ];
+    }
+    
+    private function getHealthStatus($stats) 
+    {
+        $hitRate = floatval(str_replace('%', '', $stats['hit_rate']));
+        
+        if ($hitRate >= 90) return 'excellent';
+        if ($hitRate >= 80) return 'good';
+        if ($hitRate >= 70) return 'fair';
+        return 'poor';
+    }
+    
+    private function getRecommendations($stats, $hotKeys) 
+    {
+        $recommendations = [];
+        
+        $hitRate = floatval(str_replace('%', '', $stats['hit_rate']));
+        if ($hitRate < 80) {
+            $recommendations[] = '考虑增加缓存TTL或优化缓存策略';
+        }
+        
+        $superHotCount = count(array_filter($hotKeys, function($count) {
+            return $count > 100;
+        }));
+        
+        if ($superHotCount > 5) {
+            $recommendations[] = '启用热点键自动续期功能';
+        }
+        
+        return $recommendations;
+    }
 }
 
-if ($totalRequests > 1000000) {
-    sendAlert("高并发告警");
+// 使用监控器
+$monitor = new CacheMonitor();
+$dashboard = $monitor->getDashboardData();
+
+echo "缓存健康状态: " . $dashboard['overview']['status'] . "\n";
+echo "命中率: " . $dashboard['overview']['hit_rate'] . "\n";
+
+foreach ($dashboard['recommendations'] as $rec) {
+    echo "建议: " . $rec . "\n";
 }
 ```
 
-### 定期分析
+## ⚙️ 统计配置选项
 
-- 每日生成统计报告
-- 每周分析热点键变化趋势
-- 每月评估缓存策略效果
+### 完整配置示例
+
+```php
+'cache' => [
+    // 统计功能配置
+    'enable_stats' => true,              // 是否启用统计
+    'stats_prefix' => 'cachekv:stats:',  // 统计数据键前缀
+    'stats_ttl' => 604800,               // 统计数据TTL（7天）
+    
+    // 热点键配置
+    'hot_key_auto_renewal' => true,      // 启用热点键自动续期
+    'hot_key_threshold' => 100,          // 热点键阈值
+    'hot_key_extend_ttl' => 7200,        // 热点键延长TTL
+    'hot_key_max_ttl' => 86400,          // 热点键最大TTL
+]
+```
+
+## 🚨 注意事项
+
+1. **性能影响**：统计功能会有轻微的性能开销，生产环境中可以选择性启用
+2. **存储空间**：统计数据会占用额外的Redis存储空间
+3. **数据持久性**：统计数据有TTL，会定期清理
+4. **热点键检测**：需要一定的访问量才能准确识别热点键
+
+## 🎯 最佳实践
+
+1. **生产环境**：建议启用统计功能进行性能监控
+2. **开发环境**：可以禁用统计功能提高性能
+3. **定期清理**：定期清空统计数据避免数据过期
+4. **监控告警**：设置命中率告警阈值
+5. **热点优化**：根据热点键数据优化缓存策略

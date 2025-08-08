@@ -96,6 +96,9 @@ $stats = kv_stats();
 // 获取热点键
 $hotKeys = kv_hot_keys(10);
 // ['user:profile:123' => 45, 'user:profile:456' => 32, ...]
+
+// 清空统计数据
+kv_clear_stats();
 ```
 
 ## ✨ 简洁API设计
