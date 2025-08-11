@@ -1,5 +1,5 @@
 {
-    "name": "g1012415019/cache-kv",
+    "name": "asfop/cache-kv",
     "description": "简化缓存操作的 PHP 库，专注于实现若无则从数据源获取并回填缓存这一常见模式",
     "type": "library",
     "keywords": ["cache", "redis", "php", "kv", "key-value", "hot-key", "statistics", "performance"],

@@ -4,8 +4,8 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实�
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-blue.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Packagist Version](https://img.shields.io/packagist/v/g1012415019/cache-kv.svg)](https://packagist.org/packages/g1012415019/cache-kv)
-[![Packagist Downloads](https://img.shields.io/packagist/dt/g1012415019/cache-kv.svg)](https://packagist.org/packages/g1012415019/cache-kv)
+[![Packagist Version](https://img.shields.io/packagist/v/asfop/cache-kv.svg)](https://packagist.org/packages/asfop/cache-kv)
+[![Packagist Downloads](https://img.shields.io/packagist/dt/asfop/cache-kv.svg)](https://packagist.org/packages/asfop/cache-kv)
 [![GitHub Stars](https://img.shields.io/github/stars/g1012415019/CacheKV.svg)](https://github.com/g1012415019/CacheKV/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/g1012415019/CacheKV.svg)](https://github.com/g1012415019/CacheKV/issues)
 
@@ -30,7 +30,7 @@ $data = kv_get('user.profile', ['id' => 123], function() {
 ### 安装
 
 ```bash
-composer require g1012415019/cache-kv
+composer require asfop/cache-kv
 ```
 
 ### 基础使用
