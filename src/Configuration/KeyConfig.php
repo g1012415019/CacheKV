@@ -126,17 +126,18 @@ class KeyConfig
         
         // 创建缓存配置对象
         $cacheConfig = null;
-        if (isset($config['cache']) && is_array($config['cache'])) {
-            // 只有键明确有缓存配置时才创建 CacheConfig 对象
-            // 使用 merge 方法进行配置继承
-            $globalConfig = $globalCacheConfig ?: array();
-            $groupConfig = $groupCacheConfig ?: array();
-            $keyConfig = $config['cache'];
-            
+        
+        // 配置优先级：键级配置 > 组级配置 > 全局配置
+        $globalConfig = $globalCacheConfig ?: array();
+        $groupConfig = $groupCacheConfig ?: array();
+        $keyConfig = isset($config['cache']) && is_array($config['cache']) ? $config['cache'] : array();
+        
+        // 如果有任何级别的缓存配置，就创建 CacheConfig 对象
+        if (!empty($globalConfig) || !empty($groupConfig) || !empty($keyConfig)) {
             $cacheConfig = CacheConfig::merge($globalConfig, $groupConfig, $keyConfig);
         }
-        // 注意：如果键没有明确的cache配置，我们不创建CacheConfig对象
-        // 这样 hasCacheConfig() 会返回 false，表示该键不应用缓存逻辑
+        // 只有当所有级别都没有缓存配置时，cacheConfig 才为 null
+        // 这样 hasCacheConfig() 返回 false，表示该键不应用缓存逻辑
         
         return new self($keyName, $template, $description, $cacheConfig);
     }
