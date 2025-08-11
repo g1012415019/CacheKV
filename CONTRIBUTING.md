@@ -5,13 +5,13 @@
 ## 🤝 如何贡献
 
 ### 报告问题
-- 在提交问题前，请先搜索现有的[Issues](https://github.com/asfop1/CacheKV/issues)
+- 在提交问题前，请先搜索现有的[Issues](https://github.com/g1012415019/CacheKV/issues)
 - 使用清晰的标题描述问题
 - 提供详细的重现步骤
 - 包含相关的错误信息和环境信息
 
 ### 功能建议
-- 在[Issues](https://github.com/asfop1/CacheKV/issues)中提交功能请求
+- 在[Issues](https://github.com/g1012415019/CacheKV/issues)中提交功能请求
 - 详细描述建议的功能和使用场景
 - 解释为什么这个功能对项目有价值
 
@@ -20,7 +20,7 @@
 #### 开发环境设置
 ```bash
 # 克隆仓库
-git clone https://github.com/asfop1/CacheKV.git
+git clone https://github.com/g1012415019/CacheKV.git
 cd CacheKV
 
 # 安装依赖
@@ -158,8 +158,8 @@ Closes #123
 
 ## 💬 交流
 
-- **Issues**: [GitHub Issues](https://github.com/asfop1/CacheKV/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/asfop1/CacheKV/discussions)
+- **Issues**: [GitHub Issues](https://github.com/g1012415019/CacheKV/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/g1012415019/CacheKV/discussions)
 
 ## 🙏 致谢
 

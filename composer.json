@@ -1,14 +1,14 @@
 {
-    "name": "asfop1/cache-kv",
+    "name": "g1012415019/cache-kv",
     "description": "简化缓存操作的 PHP 库，专注于实现若无则从数据源获取并回填缓存这一常见模式",
     "type": "library",
     "keywords": ["cache", "redis", "php", "kv", "key-value", "hot-key", "statistics", "performance"],
     "license": "MIT",
-    "homepage": "https://github.com/asfop1/CacheKV",
+    "homepage": "https://github.com/g1012415019/CacheKV",
     "authors": [
         {
-            "name": "ASFOP",
-            "email": "asfop1012415019@gmail.com"
+            "name": "g1012415019",
+            "email": "g1012415019@gmail.com"
         }
     ],
     "require": {
@@ -41,7 +41,7 @@
         "test-coverage": "phpunit --coverage-html coverage"
     },
     "support": {
-        "issues": "https://github.com/asfop1/CacheKV/issues",
-        "source": "https://github.com/asfop1/CacheKV"
+        "issues": "https://github.com/g1012415019/CacheKV/issues",
+        "source": "https://github.com/g1012415019/CacheKV"
     }
 }

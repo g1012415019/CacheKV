@@ -70,7 +70,7 @@ $users = cache_kv_get_multiple($templates, $callback);
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv:^1.0.4
+composer require g1012415019/cache-kv:^1.0.4
 ```
 
 ---
@@ -123,7 +123,7 @@ $users = cache_kv_get_multiple(['user.profile' => [
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -155,7 +155,7 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -165,8 +165,8 @@ composer require asfop1/cache-kv
 ### 📚 文档更新
 
 #### 🔄 更改
-- **包名更新**: 从 `asfop/cache-kv` 更新为 `asfop1/cache-kv`
-- **安装命令**: 更新所有文档中的安装命令为 `composer require asfop1/cache-kv`
+- **包名更新**: 从 `asfop/cache-kv` 更新为 `g1012415019/cache-kv`
+- **安装命令**: 更新所有文档中的安装命令为 `composer require g1012415019/cache-kv`
 - **项目徽章**: 添加版本、下载量、星标、问题等徽章到主README
 - **文档链接**: 修复文档间的交叉引用链接
 
@@ -182,7 +182,7 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -242,13 +242,13 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ### 🔗 链接
-- [GitHub仓库](https://github.com/asfop1/CacheKV)
-- [Packagist包](https://packagist.org/packages/asfop1/cache-kv)
-- [问题反馈](https://github.com/asfop1/CacheKV/issues)
+- [GitHub仓库](https://github.com/g1012415019/CacheKV)
+- [Packagist包](https://packagist.org/packages/g1012415019/cache-kv)
+- [问题反馈](https://github.com/g1012415019/CacheKV/issues)
 
 ### 🚀 功能改进
 
@@ -296,7 +296,7 @@ $users = cache_kv_get_multiple(['user.profile' => [
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -328,7 +328,7 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -338,8 +338,8 @@ composer require asfop1/cache-kv
 ### 📚 文档更新
 
 #### 🔄 更改
-- **包名更新**: 从 `asfop/cache-kv` 更新为 `asfop1/cache-kv`
-- **安装命令**: 更新所有文档中的安装命令为 `composer require asfop1/cache-kv`
+- **包名更新**: 从 `asfop/cache-kv` 更新为 `g1012415019/cache-kv`
+- **安装命令**: 更新所有文档中的安装命令为 `composer require g1012415019/cache-kv`
 - **项目徽章**: 添加版本、下载量、星标、问题等徽章到主README
 - **文档链接**: 修复文档间的交叉引用链接
 
@@ -355,7 +355,7 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ---
@@ -415,10 +415,10 @@ composer require asfop1/cache-kv
 
 ### 📦 安装
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ### 🔗 链接
-- [GitHub仓库](https://github.com/asfop1/CacheKV)
-- [Packagist包](https://packagist.org/packages/asfop1/cache-kv)
-- [问题反馈](https://github.com/asfop1/CacheKV/issues)
+- [GitHub仓库](https://github.com/g1012415019/CacheKV)
+- [Packagist包](https://packagist.org/packages/g1012415019/cache-kv)
+- [问题反馈](https://github.com/g1012415019/CacheKV/issues)

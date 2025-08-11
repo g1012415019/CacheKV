@@ -5,7 +5,7 @@
 ## 📦 安装
 
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ## ⚡ 基础配置

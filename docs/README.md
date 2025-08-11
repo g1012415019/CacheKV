@@ -14,7 +14,7 @@ CacheKV 是一个专注于简化缓存操作的 PHP 库，核心功能是实现"
 ## 📦 安装
 
 ```bash
-composer require asfop1/cache-kv
+composer require g1012415019/cache-kv
 ```
 
 ## ⚡ 快速开始
