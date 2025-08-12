@@ -120,6 +120,7 @@ kv_get_keys($template, $paramsList)  // 获取键对象
 
 ### 🗑️ 删除操作
 ```php
+kv_delete($template, $params)         // 删除指定缓存
 kv_delete_prefix($template, $params)  // 按前缀删除
 kv_delete_full($prefix)               // 按完整前缀删除
 ```

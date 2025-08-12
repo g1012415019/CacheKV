@@ -90,6 +90,21 @@ if (!function_exists('kv_get_keys')) {
 // 删除操作
 // ============================================================================
 
+if (!function_exists('kv_delete')) {
+    /**
+     * 删除指定的缓存
+     * 
+     * @param string $template 模板，如 'user.profile'
+     * @param array $params 参数，如 ['id' => 123]
+     * @return bool 是否删除成功
+     */
+    function kv_delete($template, array $params = array())
+    {
+        $key = KeyManager::getInstance()->createKeyFromTemplate($template, $params);
+        return CacheKVFactory::getInstance()->delete($key);
+    }
+}
+
 if (!function_exists('kv_delete_prefix')) {
     /**
      * 按前缀删除缓存
