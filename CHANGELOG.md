@@ -5,6 +5,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2024-08-12
+
+### ✨ 新增功能
+- **新增 `kv_delete` 函数**: 提供更直观的单个缓存删除功能
+  ```php
+  kv_delete('user.profile', ['id' => 123]); // 删除指定缓存
+  ```
+
+### 🎯 API 优化
+- **完善删除操作 API**: 现在提供三种删除函数，避免函数名歧义
+  - `kv_delete($template, $params)` - 删除指定缓存
+  - `kv_delete_prefix($template, $params)` - 按前缀删除
+  - `kv_delete_full($prefix)` - 删除所有匹配前缀的缓存
+
+### 📚 文档改进
+- 更新 README 文档，完善删除操作说明
+- 添加 LearnKu 社区发布文章
+- 优化代码示例和使用说明
+
 ## [1.0.4] - 2024-08-04
 
 ### 🚀 重要功能完善版本
