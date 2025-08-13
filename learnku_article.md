@@ -91,7 +91,9 @@ $user = kv_get('user.profile', ['id' => 123], function() {
 ```php
 // 要获取多个用户的数据
 $users = kv_get_multi('user.profile', [
-    ['id' => 1], ['id' => 2], ['id' => 3]
+    ['id' => 1], 
+    ['id' => 2], 
+    ['id' => 3]
 ], function($missedKeys) {
     // 这个函数只会收到缓存中没有的键
     // 比如缓存中有id=1的数据，这里就只会收到id=2,3
@@ -114,14 +116,16 @@ $key = kv_key('user.profile', ['id' => 123]);
 
 // 批量生成键名
 $keys = kv_keys('user.profile', [
-    ['id' => 1], ['id' => 2], ['id' => 3]
+    ['id' => 1], 
+    ['id' => 2], 
+    ['id' => 3]
 ]);
 ```
 
 ### 删除缓存
 ```php
-kv_delete('user.profile', ['id' => 123]);     // 删除这个用户的缓存
-kv_delete_full('user.profile');               // 删除所有用户资料缓存
+kv_delete('user.profile', ['id' => 123]); // 删除这个用户的缓存
+kv_delete_full('user.profile');           // 删除所有用户资料缓存
 ```
 
 ## 键管理怎么做的
@@ -131,8 +135,8 @@ kv_delete_full('user.profile');               // 删除所有用户资料缓存
 ```php
 // 配置文件
 'user.profile' => [
-    'template' => 'profile:{id}',  // 键的模板
-    'ttl' => 7200                  // 缓存2小时
+    'template' => 'profile:{id}', // 键的模板
+    'ttl' => 7200                 // 缓存2小时
 ]
 ```
 
@@ -140,9 +144,8 @@ kv_delete_full('user.profile');               // 删除所有用户资料缓存
 
 ```php
 $user = kv_get('user.profile', ['id' => 123], $callback);
+// 库会自动生成标准的键名：app:user:v1:profile:123
 ```
-
-库会自动生成标准的键名：`app:user:v1:profile:123`
 
 这个键名的结构是：`应用前缀:组名:版本:具体键`
 
