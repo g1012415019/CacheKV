@@ -17,10 +17,23 @@ if ($data === false) {
 
 这种"检查缓存 → 未命中则获取 → 回填缓存"的模式到处都是，每次都要写一遍，还容易出错。更麻烦的是缓存键的管理，经常出现：
 
-- 键名不统一：`user_profile_123` vs `user:profile:123`
-- 环境混乱：开发和生产环境的缓存互相干扰
-- 版本问题：代码升级后旧缓存还在，导致数据不一致
-- 批量操作复杂：要获取多个用户数据时，代码变得很冗长
+```php
+// 不同开发者可能写出不同的键名
+$key1 = "user_profile_{$id}";           // 下划线风格
+$key2 = "user:profile:{$id}";           // 冒号风格  
+$key3 = "userProfile{$id}";             // 驼峰风格
+$key4 = "cache_user_profile_{$id}";     // 带前缀
+
+// 环境问题
+$key = "user:profile:{$id}";            // 开发和生产用同样的键
+$key = "dev_user:profile:{$id}";        // 手动加环境前缀，容易忘记
+
+// 版本问题
+$key = "user:profile:{$id}";            // v1.0 的数据结构
+// 升级到 v2.0 后，缓存中还是旧数据，但代码期望新格式
+```
+
+还有批量操作的复杂性：要获取多个用户数据时，需要写很多重复的逻辑来处理缓存命中和未命中的情况。
 
 想着能不能简化一下，就试着用 Amazon Q AI 来帮忙写个库。
 
@@ -72,29 +85,9 @@ kv_delete_prefix('user.profile', ['id' => 123]); // 删除 user:profile:123 相�
 kv_delete_full('user.profile');                  // 删除所有 user.profile.* 的缓存
 ```
 
-## 为什么要做键管理
+## 键管理的解决方案
 
-在开发这个库的过程中，发现缓存键管理是个很容易被忽视但很重要的问题：
-
-### 传统方式的问题
-
-```php
-// 不同开发者可能写出不同的键名
-$key1 = "user_profile_{$id}";           // 下划线风格
-$key2 = "user:profile:{$id}";           // 冒号风格  
-$key3 = "userProfile{$id}";             // 驼峰风格
-$key4 = "cache_user_profile_{$id}";     // 带前缀
-
-// 环境问题
-$key = "user:profile:{$id}";            // 开发和生产用同样的键
-$key = "dev_user:profile:{$id}";        // 手动加环境前缀，容易忘记
-
-// 版本问题
-$key = "user:profile:{$id}";            // v1.0 的数据结构
-// 升级到 v2.0 后，缓存中还是旧数据，但代码期望新格式
-```
-
-### 统一键管理的好处
+针对上面提到的键管理问题，库中设计了统一的键管理系统：
 
 ```php
 // 配置文件中定义键模板
