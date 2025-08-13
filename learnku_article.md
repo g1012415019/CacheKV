@@ -4,36 +4,68 @@
 
 做项目时经常写这样的代码：
 
+### 单个数据获取
 ```php
-// 每次都要写这么一堆
+// 原生 Redis 写法 - 每次都要写这么一堆
 $cacheKey = "user:profile:{$userId}";
 $data = $redis->get($cacheKey);
 if ($data === false) {
-    // 缓存没有，去数据库查
     $data = $this->getUserFromDatabase($userId);
-    // 查到了再存回缓存
     $redis->setex($cacheKey, 3600, json_encode($data));
 } else {
     $data = json_decode($data, true);
 }
+
+// Laravel Cache 写法 - 简单一些，但键名还是要手动拼接
+$user = Cache::remember("user.profile.{$id}", 3600, function() use ($id) {
+    return getUserFromDatabase($id);
+});
 ```
 
-这种"先查缓存，没有就查数据库，然后存回缓存"的套路到处都是。每次都要写一遍，比较繁琐。
+### 批量数据获取
+```php
+// 原生 Redis 写法 - 更复杂，要处理哪些有缓存哪些没有
+$keys = [];
+foreach ($ids as $id) {
+    $keys[] = "user:profile:{$id}";
+}
+$cached = $redis->mget($keys);
+$result = [];
+$missed = [];
+foreach ($ids as $index => $id) {
+    if ($cached[$index] !== false) {
+        $result[$id] = json_decode($cached[$index], true);
+    } else {
+        $missed[] = $id;
+    }
+}
+if (!empty($missed)) {
+    $freshData = getUsersFromDatabase($missed);
+    foreach ($freshData as $id => $data) {
+        $result[$id] = $data;
+        $redis->setex("user:profile:{$id}", 3600, json_encode($data));
+    }
+}
+
+// Laravel Cache 写法 - 会产生N次数据库查询
+$users = [];
+foreach ($ids as $id) {
+    $users[$id] = Cache::remember("user.profile.{$id}", 3600, function() use ($id) {
+        return getUserFromDatabase($id); // 每个用户都查一次数据库
+    });
+}
+```
+
+这种"先查缓存，没有就查数据库，然后存回缓存"的套路到处都是。单个数据还好，批量操作就比较繁琐了。
 
 更麻烦的是缓存键的命名，团队里每个人都有自己的风格：
 
 ```php
-// 张三喜欢用下划线
-$key1 = "user_profile_{$id}";
-
-// 李四喜欢用冒号
-$key2 = "user:profile:{$id}";
-
-// 王五喜欢驼峰
-$key3 = "userProfile{$id}";
-
-// 还有人加各种前缀
-$key4 = "cache_user_profile_{$id}";
+// 不同的命名风格
+$key1 = "user_profile_{$id}";      // 下划线风格
+$key2 = "user:profile:{$id}";      // 冒号风格  
+$key3 = "userProfile{$id}";        // 驼峰风格
+$key4 = "cache_user_profile_{$id}"; // 带前缀
 ```
 
 结果就是：
@@ -47,15 +79,15 @@ $key4 = "cache_user_profile_{$id}";
 
 现在变成这样：
 
-### 基本用法
+### 单个数据获取
 ```php
-// 原来7-8行代码，现在1行搞定
+// 原来需要7-8行代码，现在1行搞定
 $user = kv_get('user.profile', ['id' => 123], function() {
     return getUserFromDatabase(123); // 只有缓存没有时才执行
 });
 ```
 
-### 批量获取
+### 批量数据获取
 ```php
 // 要获取多个用户的数据
 $users = kv_get_multi('user.profile', [
@@ -71,6 +103,8 @@ $users = kv_get_multi('user.profile', [
     return $data;
 });
 ```
+
+批量操作会把所有没有缓存的数据一次性查出来，避免了N+1查询问题。
 
 ### 统一的键管理
 ```php
@@ -117,74 +151,6 @@ $user = kv_get('user.profile', ['id' => 123], $callback);
 - **环境隔离**：开发、测试、生产环境自动用不同前缀
 - **版本控制**：升级时改个版本号，自动避开旧缓存
 - **集中管理**：所有键的定义都在配置文件里，好维护
-
-## 和其他方案比较
-
-### 对比原生 Redis 写法
-
-**原来的写法：**
-```php
-// 获取单个用户 - 要写一堆
-$key = "user:profile:{$id}";
-$data = $redis->get($key);
-if ($data === false) {
-    $data = getUserFromDatabase($id);
-    $redis->setex($key, 3600, json_encode($data));
-} else {
-    $data = json_decode($data, true);
-}
-
-// 获取多个用户 - 更复杂，要处理哪些有缓存哪些没有
-$keys = [];
-foreach ($ids as $id) {
-    $keys[] = "user:profile:{$id}";
-}
-$cached = $redis->mget($keys);
-$result = [];
-$missed = [];
-foreach ($ids as $index => $id) {
-    if ($cached[$index] !== false) {
-        $result[$id] = json_decode($cached[$index], true);
-    } else {
-        $missed[] = $id;
-    }
-}
-// 还要查数据库补充没有缓存的数据...
-```
-
-**现在的写法：**
-```php
-// 单个
-$user = kv_get('user.profile', ['id' => $id], function() use ($id) {
-    return getUserFromDatabase($id);
-});
-
-// 多个
-$users = kv_get_multi('user.profile', 
-    array_map(fn($id) => ['id' => $id], $ids),
-    function($missedKeys) {
-        // 只需要处理没有缓存的
-        $missed = array_map(fn($key) => $key->getParams()['id'], $missedKeys);
-        return getUsersFromDatabase($missed);
-    }
-);
-```
-
-### 对比 Laravel Cache
-
-Laravel 的 `Cache::remember` 只能处理单个缓存，批量操作要自己写循环：
-
-```php
-// Laravel 方式 - 会产生N次数据库查询
-$users = [];
-foreach ($ids as $id) {
-    $users[$id] = Cache::remember("user.profile.{$id}", 3600, function() use ($id) {
-        return getUserFromDatabase($id); // 每个用户都查一次数据库
-    });
-}
-```
-
-CacheKV 的批量操作会把所有没有缓存的数据一次性查出来，避免了N+1查询问题。
 
 ## 怎么用
 
