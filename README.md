@@ -1,5 +1,7 @@
 # CacheKV
 
+> **Language / 语言选择**: [English](README_EN.md) | [简体中文](README.md) | [繁體中文](README_TW.md)
+
 CacheKV 是一个专注于简化缓存操作的 PHP 库，**核心功能是实现"若无则从数据源获取并回填缓存"这一常见模式**。
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-blue.svg)](https://php.net/)
